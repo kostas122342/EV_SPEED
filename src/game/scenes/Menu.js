@@ -43,15 +43,13 @@ export class Menu extends Scene {
             this.showModeSelect();
         }, undefined, this.menuGroup);
 
-        // GARAGE button
-        this.makeButton(W / 2, 380, 240, 56, 'GARAGE', () => {
-            this.scene.start('Garage');
-        }, [0x005533, 0x007744, 0x22aa66], this.menuGroup);
-
-        // SHOP button
-        this.makeButton(W / 2, 450, 240, 56, 'SHOP', () => {
+        this.makeButton(W / 2, 385, 240, 56, '🛒  SHOP', () => {
             this.scene.start('Shop');
-        }, [0x004488, 0x0055aa, 0x2288cc], this.menuGroup);
+        }, [0x004488, 0x0055aa, 0x2288cc], this.menuGroup, { emoji: -44, label: -10 });
+
+        this.makeButton(W / 2, 460, 240, 56, '⚙️  SETTINGS', () => {
+            this.scene.start('Settings');
+        }, [0x333344, 0x444466, 0x6666aa], this.menuGroup, { emoji: -60, label: -10 });
     }
 
     showModeSelect() {
@@ -70,12 +68,12 @@ export class Menu extends Scene {
             stroke: '#0033aa', strokeThickness: 7
         }).setOrigin(0.5).setDepth(11);
 
-        this.makeModalButton(W / 2, H / 2 - 20, 240, 56, 'SINGLE PLAYER',
-            () => this.scene.start('Game'),
+        this.makeModalButton(W / 2, H / 2 - 20, 240, 56, '👤  1 PLAYER',
+            () => this.scene.start('Game', { mp: false }),
             [0x880000, 0xaa0000, 0xdd2222]);
 
-        this.makeModalButton(W / 2, H / 2 + 60, 240, 56, 'MULTIPLAYER',
-            () => this.scene.start('Game', { mp: true, player: 1, p1Score: 0 }),
+        this.makeModalButton(W / 2, H / 2 + 60, 240, 56, '👥  2 PLAYERS',
+            () => this.scene.start('MPCarSelect'),
             [0x005533, 0x007744, 0x22aa66]);
 
         this.makeModalButton(W / 2, H / 2 + 148, 160, 44, '← BACK',
@@ -123,7 +121,7 @@ export class Menu extends Scene {
         this.addShine(bx, by, bw, bh);
     }
 
-    makeButton(x, y, bw, bh, label, onClick, colors = [0x880000, 0xaa0000, 0xdd2222], group = null) {
+    makeButton(x, y, bw, bh, label, onClick, colors = [0x880000, 0xaa0000, 0xdd2222], group = null, textOffsetX = 0) {
         const bx = x - bw / 2, by = y - bh / 2;
         const btn = this.add.graphics().setDepth(2);
         if (group) group.add(btn);
@@ -139,12 +137,30 @@ export class Menu extends Scene {
         };
         draw(1);
 
-        const txt = this.add.text(x, y, label, {
-            fontFamily: 'Arial Black', fontSize: 30,
-            color: '#ffffff', stroke: '#000000', strokeThickness: 4,
-            fontStyle: 'italic'
-        }).setOrigin(0.5).setDepth(3);
-        if (group) group.add(txt);
+        let txt;
+        const splitParts = (typeof textOffsetX === 'object') ? label.match(/^(\S+)\s{2}(.+)$/) : null;
+        if (splitParts) {
+            const eo = textOffsetX.emoji || 0, lo = textOffsetX.label || 0;
+            const emojiTxt = this.add.text(x + eo - 28, y, splitParts[1], {
+                fontFamily: 'Arial Black', fontSize: 30,
+                color: '#ffffff', stroke: '#000000', strokeThickness: 4,
+                fontStyle: 'italic'
+            }).setOrigin(0.5).setDepth(3);
+            txt = this.add.text(x + lo + 28, y, splitParts[2], {
+                fontFamily: 'Arial Black', fontSize: 30,
+                color: '#ffffff', stroke: '#000000', strokeThickness: 4,
+                fontStyle: 'italic'
+            }).setOrigin(0.5).setDepth(3);
+            if (group) { group.add(emojiTxt); group.add(txt); }
+        } else {
+            const off = typeof textOffsetX === 'number' ? textOffsetX : 0;
+            txt = this.add.text(x + off, y, label, {
+                fontFamily: 'Arial Black', fontSize: 30,
+                color: '#ffffff', stroke: '#000000', strokeThickness: 4,
+                fontStyle: 'italic'
+            }).setOrigin(0.5).setDepth(3);
+            if (group) group.add(txt);
+        }
 
         const zone = this.add.zone(x, y, bw, bh).setInteractive().setDepth(4);
         zone.on('pointerover',  () => draw(0.80));

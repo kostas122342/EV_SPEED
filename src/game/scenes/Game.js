@@ -23,6 +23,20 @@ function laneX(lane) {
 function rnd(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
 function smoothstep(t) { const c = Math.min(1, Math.max(0, t)); return c * c * (3 - 2 * c); }
 
+function lerpColor(a, b, t) {
+    const ar = (a >> 16) & 0xff, ag = (a >> 8) & 0xff, ab = a & 0xff;
+    const br = (b >> 16) & 0xff, bg = (b >> 8) & 0xff, bb = b & 0xff;
+    return ((ar + (br - ar) * t | 0) << 16) | ((ag + (bg - ag) * t | 0) << 8) | (ab + (bb - ab) * t | 0);
+}
+
+const WEATHER_STATES = [
+    { sky: 0x87CEEB, fog: 0x87CEEB, grass: 0x4a8c3f, night: 0.0  },  // Day
+    { sky: 0x9aaabb, fog: 0xaabbc8, grass: 0x3d7a35, night: 0.1  },  // Overcast
+    { sky: 0xe06030, fog: 0xf08858, grass: 0x4a4e24, night: 0.35 },  // Sunset
+    { sky: 0x080820, fog: 0x101830, grass: 0x0e180e, night: 1.0  },  // Night
+    { sky: 0xbb5577, fog: 0xcc7799, grass: 0x3a3e28, night: 0.4  },  // Dawn
+];
+
 export class Game extends Scene {
     constructor() { super('Game'); }
 
@@ -48,6 +62,8 @@ export class Game extends Scene {
         this.mp          = !!mpData.mp;
         this.mpPlayer    = mpData.player || 1;
         this.mpP1Score   = mpData.p1Score || 0;
+        this.mpP1Car     = mpData.p1Car   || 'playerCar';
+        this.mpP2Car     = mpData.p2Car   || 'playerCar';
         this.started     = !this.mp;
 
         this.dist   = 0;
@@ -69,23 +85,29 @@ export class Game extends Scene {
         this.sx = 0;     this.sy = 0;
         this.moveDir = 0;
 
-        this.theme  = Math.random() < 0.5 ? 'city' : 'athens';
-        this.bgOffY = 0;
+        this.theme = 'athens';
 
-        this.gBg   = this.add.graphics().setDepth(0);
-        this.bgImg = this.add.image(W / 2, 290, this.theme === 'city' ? 'city' : 'athens')
-            .setOrigin(0.5, 1).setDisplaySize(W * 1.05, 305).setDepth(1.3);
-        if (this.theme === 'athens') this.bgImg.setTint(0xd8d0c0);
-        else                         this.bgImg.setTint(0xc8dce8);
+        // Weather / time-of-day
+        this.weatherIdx = 0;
+        this.weatherNext = 1;
+        this.weatherT = 1.0;
+        this.wSky   = WEATHER_STATES[0].sky;
+        this.wFog   = WEATHER_STATES[0].fog;
+        this.wGrass = WEATHER_STATES[0].grass;
+        this.wNight = 0.0;
 
-        this.gRoad = this.add.graphics().setDepth(1);
-        this.gFog  = this.add.graphics().setDepth(1.5);
-        this.gCity = this.add.graphics().setDepth(1.7);
-        this.gEnv  = this.add.graphics().setDepth(2);
-        this.gCar  = this.add.graphics().setDepth(3);
+        this.gBg    = this.add.graphics().setDepth(0);
+
+        this.gRoad  = this.add.graphics().setDepth(1);
+        this.gFog   = this.add.graphics().setDepth(1.5);
+        this.gCity  = this.add.graphics().setDepth(1.7);
+        this.gEnv   = this.add.graphics().setDepth(2);
+        this.gNight = this.add.graphics().setDepth(2.8);
+        this.gCar   = this.add.graphics().setDepth(3);
 
         this.carRot = 0;
-        const selectedCar = localStorage.getItem('evspeed_selected_car') || 'playerCar';
+        const mpCarKey = this.mp ? (this.mpPlayer === 1 ? mpData.p1Car : mpData.p2Car) : null;
+        const selectedCar = mpCarKey || localStorage.getItem('evspeed_selected_car') || 'playerCar';
         this.selectedCar = selectedCar;
         const CAR_SCALES = { playerCar: 0.32, car2: 0.27, evS: 0.17, evX: 0.114, modelY: 0.1365 };
         this.playerSprite = this.add.image(this.px, H - 80, selectedCar)
@@ -143,6 +165,10 @@ export class Game extends Scene {
                 e.sprite = this.add.image(0, 0, 'P1').setOrigin(0.5, 0.74).setDepth(2.5).setVisible(false);
                 this.enemies.push(e);
             }
+        }});
+
+        this.time.addEvent({ delay: 18000, loop: true, callback: () => {
+            if (!this.over) this.weatherT = 0;
         }});
 
         this.time.addEvent({ delay: 2200, loop: true, callback: () => {
@@ -314,14 +340,13 @@ export class Game extends Scene {
 
         this.dist   += this.spd * dt;
         this.spd     = Math.min(1800, 350 + Math.sqrt(this.score) * 8);
-        this.bgOffY  = Math.min(60, this.bgOffY + dt * (this.spd / 8000));
-        this.bgImg.setY(290 - this.bgOffY);
 
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             const e = this.enemies[i];
-            // Trigger rush when enemy is fully visible, safely above collision zone, and no other enemy is already rushing
+            // Trigger rush only if lane is clear of obstacles and no other enemy is already rushing
             const anyRushing = this.enemies.some(o => o !== e && o.rushPhase !== 'idle');
-            if (e.willRush && e.rushPhase === 'idle' && e.z >= 310 && e.z <= 430 && !anyRushing) {
+            const obstacleClear = !this.obstacles.some(o => o.lane === e.lane && o.z > 280 && o.z < 1400);
+            if (e.willRush && e.rushPhase === 'idle' && e.z >= 310 && e.z <= 430 && !anyRushing && obstacleClear) {
                 e.willRush = false;
                 e.rushPhase = 'accel';
                 e.rushT = 0;
@@ -340,9 +365,24 @@ export class Game extends Scene {
                 }
             }
             e.z = Math.min(Z_FAR - 1, e.z - this.spd * e.speedMul * dt);
+            let enemyRemoved = false;
             if (e.z < 80) {
                 e.sprite.destroy();
                 this.enemies.splice(i, 1);
+                enemyRemoved = true;
+            }
+            // Crash: obstacle hits stopped enemy during rush
+            if (!enemyRemoved && e.rushPhase === 'stop') {
+                for (let oi = this.obstacles.length - 1; oi >= 0; oi--) {
+                    const o = this.obstacles[oi];
+                    if (o.lane === e.lane && Math.abs(e.z - o.z) < 130) {
+                        this.showEnemyCrash(e.sprite, e.z, e.lane);
+                        o.sprite.destroy();
+                        this.obstacles.splice(oi, 1);
+                        this.enemies.splice(i, 1);
+                        break;
+                    }
+                }
             }
         }
         for (let i = this.obstacles.length - 1; i >= 0; i--) {
@@ -439,6 +479,22 @@ export class Game extends Scene {
 
         this.tSc.setText('SCORE: ' + this.score);
         this.tSp.setText(Math.min(200, Math.floor(100 + (this.spd - 350) / 5)) + ' KM/H');
+
+        // Weather transition (8s blend)
+        if (this.weatherT < 1.0) {
+            this.weatherT = Math.min(1.0, this.weatherT + dt / 8);
+            const from = WEATHER_STATES[this.weatherIdx];
+            const to   = WEATHER_STATES[this.weatherNext];
+            this.wSky   = lerpColor(from.sky,   to.sky,   this.weatherT);
+            this.wFog   = lerpColor(from.fog,   to.fog,   this.weatherT);
+            this.wGrass = lerpColor(from.grass, to.grass, this.weatherT);
+            this.wNight = from.night + (to.night - from.night) * this.weatherT;
+            if (this.weatherT >= 1.0) {
+                this.weatherIdx  = this.weatherNext;
+                this.weatherNext = (this.weatherIdx + 1) % WEATHER_STATES.length;
+            }
+        }
+
         this.redraw();
     }
 
@@ -448,14 +504,15 @@ export class Game extends Scene {
         this.gFog.clear();
         this.gCity.clear();
         this.gEnv.clear();
+        this.gNight.clear();
         this.gCar.clear();
 
         // Sky
-        this.gBg.fillStyle(this.theme === 'city' ? 0x87CEEB : 0xb2bec8, 1);
+        this.gBg.fillStyle(this.wSky, 1);
         this.gBg.fillRect(0, 0, W, HORIZON_Y);
 
-        // Ground base
-        this.gBg.fillStyle(this.theme === 'city' ? 0x707880 : 0x4a5c38, 1);
+        // Grass
+        this.gBg.fillStyle(this.wGrass, 1);
         this.gBg.fillRect(0, HORIZON_Y, W, H - HORIZON_Y);
 
         // Road scanlines
@@ -490,9 +547,10 @@ export class Game extends Scene {
                 const mark  = t1 && t2 ? 0x595f67 : t3 ? 0x82888e : base;
                 g.fillStyle(mark, 1);
             } else {
-                const base  = t4 ? 0x526244 : t3 ? 0x425234 : 0x4a5c3c;
-                const stone = t1 && t2;
-                g.fillStyle(stone ? (t4 ? 0x8a8470 : 0x706a5c) : base, 1);
+                const gc = this.wGrass;
+                const base = t4 ? lerpColor(gc, 0x000000, 0.12) : t3 ? gc : lerpColor(gc, 0x000000, 0.06);
+                const dark = t1 && t2 && t3;
+                g.fillStyle(dark ? lerpColor(gc, 0x000000, 0.22) : base, 1);
             }
             g.fillRect(0,            y, cx - hw - cw, SCAN);
             g.fillRect(cx + hw + cw, y, W - (cx + hw + cw), SCAN);
@@ -510,35 +568,59 @@ export class Game extends Scene {
         const FOG_DENSE = 90;
         const FOG_H     = 240;
 
-        const S = 3; // step size for all gradient loops — reduces draw calls ~3x
-
-        // Side vignettes
-        const vigCol = this.theme === 'city' ? 0x707880 : 0xb0a898;
-        const vigW   = 90;
-        for (let vx = 0; vx < vigW; vx += S) {
-            const a = (1.0 - smoothstep(vx / vigW)) * 0.88;
-            this.gFog.fillStyle(vigCol, a);
-            this.gFog.fillRect(vx,             0, S, 295);
-            this.gFog.fillRect(W - vx - S,     0, S, 295);
+        // Horizon fog: dense near horizon, fades toward player
+        for (let fy = 0; fy < FOG_H; fy += 2) {
+            const alpha = fy < FOG_DENSE
+                ? 1.0
+                : 1.0 - smoothstep((fy - FOG_DENSE) / (FOG_H - FOG_DENSE));
+            this.gFog.fillStyle(this.wFog, alpha);
+            this.gFog.fillRect(0, HORIZON_Y + fy, W, 2);
         }
 
-        // Top sky fade
-        const skyCol = this.theme === 'city' ? 0x87CEEB : 0xb2bec8;
-        for (let by = 0; by < 90; by += S) {
-            const a = (1.0 - smoothstep(by / 90)) * 0.85;
-            this.gFog.fillStyle(skyCol, a);
-            this.gFog.fillRect(0, by, W, S);
+        // Night overlay — blue tint deepens toward full night
+        if (this.wNight > 0) {
+            const ovCol = lerpColor(0x000818, 0x00082e, this.wNight);
+            this.gNight.fillStyle(ovCol, this.wNight * 0.65);
+            this.gNight.fillRect(0, 0, W, H);
         }
 
-        // Edge blend fog
-        const fogCol = this.theme === 'city' ? 0x4a7a9a : 0xb8b8b8;
-        const Y1 = 230, YMID = 278, Y2 = 480;
-        for (let by = Y1; by < Y2; by += S) {
-            const t = by < YMID
-                ? smoothstep((by - Y1)   / (YMID - Y1))
-                : 1.0 - smoothstep((by - YMID) / (Y2 - YMID));
-            this.gFog.fillStyle(fogCol, t);
-            this.gFog.fillRect(0, by, W, S);
+        // Roadside lamp posts (both sides, scroll with road)
+        const lampFade = Math.max(0, (this.wNight - 0.2) / 0.35);
+        if (lampFade > 0) {
+            const FOG_DENSE_L = 90, FOG_H_L = 240;
+            const LAMP_SPACING = 380;
+            const baseZ = ((this.dist % LAMP_SPACING) + LAMP_SPACING) % LAMP_SPACING;
+            for (let zl = baseZ + 80; zl < Z_FAR; zl += LAMP_SPACING) {
+                const pL = proj(-ROAD_HW - 20, zl);
+                const pR = proj( ROAD_HW + 20, zl);
+                if (pL.y < HORIZON_Y || pL.y > H + 60) continue;
+                const fa2 = smoothstep((pL.y - HORIZON_Y - FOG_DENSE_L) / (FOG_H_L - FOG_DENSE_L));
+                const lfa = fa2 * lampFade;
+                const sides = [{ p: pL, dir: 1 }, { p: pR, dir: -1 }];
+                for (const { p, dir } of sides) {
+                    const th = Math.max(5, 78 * p.s);
+                    const tw = Math.max(1.5, 6 * p.s);
+                    const lr = Math.max(2.5, 9 * p.s);
+                    // Post
+                    this.gCity.fillStyle(0x5566aa, lfa);
+                    this.gCity.fillRect(p.x - tw / 2, p.y - th, tw, th);
+                    // Arm toward road
+                    this.gCity.fillRect(p.x - tw / 2, p.y - th, tw * 3.5 * dir, tw * 0.8);
+                    // Lamp head
+                    this.gCity.fillStyle(0xeef5ff, lfa);
+                    this.gCity.fillCircle(p.x + tw * 1.75 * dir, p.y - th, lr);
+                    // Glow halo
+                    this.gCity.fillStyle(0xbbddff, lfa * 0.25);
+                    this.gCity.fillCircle(p.x + tw * 1.75 * dir, p.y - th, lr * 2.8);
+                    // Light cone downward
+                    if (lampFade > 0.4) {
+                        const coneA = lfa * (lampFade - 0.4) * 0.22;
+                        const lx = p.x + tw * 1.75 * dir, ly = p.y - th;
+                        this.gCity.fillStyle(0xaaccff, coneA);
+                        this.gCity.fillTriangle(lx, ly + lr, lx - lr * 2.5 * dir, ly + lr * 6, lx + lr * 2.5 * dir, ly + lr * 6);
+                    }
+                }
+            }
         }
 
         // Trees (far → near)
@@ -548,33 +630,52 @@ export class Game extends Scene {
             const p = proj(t.s * t.ox, t.z);
             if (p.y < HORIZON_Y || p.y > H + 100) continue;
             const fa = smoothstep((p.y - HORIZON_Y - FOG_DENSE) / (FOG_H - FOG_DENSE));
-            if (this.theme === 'city') {
-                t.sprite.setVisible(false);
-                const th = Math.max(6, 80 * p.s);
-                const tw = Math.max(2, 7 * p.s);
-                const lr = Math.max(3, 10 * p.s);
-                this.gEnv.fillStyle(0x8899aa, fa);
-                this.gEnv.fillRect(p.x - tw / 2, p.y - th, tw, th);
-                this.gEnv.fillRect(p.x - tw / 2, p.y - th, tw * 3, tw);
-                this.gEnv.fillStyle(0xffeebb, fa * 0.9);
-                this.gEnv.fillCircle(p.x + tw * 1.5, p.y - th, lr);
-            } else if (t.isStone) {
-                t.sprite.setVisible(false);
-            } else {
-                t.sprite.setVisible(false);
+            t.sprite.setVisible(false);
+            if (t.isStone) continue;
+
+            const ni = this.wNight;
+            const lampFade = Math.max(0, (ni - 0.2) / 0.4); // 0→1 as night approaches
+
+            // Athens tree (darkened by night)
+            if (lampFade < 1) {
+                const treeFa = fa * (1 - lampFade);
                 const th = Math.max(9, 95 * p.s);
                 const tw = Math.max(2, 10 * p.s);
                 const tr = Math.max(6, 40 * p.s);
                 const foliageCY = p.y - th * 0.58;
                 const trunkStart = foliageCY + tr;
                 if (trunkStart < p.y) {
-                    this.gEnv.fillStyle(0x5a3e1e, fa);
+                    this.gEnv.fillStyle(lerpColor(0x5a3e1e, 0x1a0e08, ni), treeFa);
                     this.gEnv.fillRect(p.x - tw / 2, trunkStart, tw, p.y - trunkStart);
                 }
-                this.gEnv.fillStyle(0x2d6e1a, fa);
+                this.gEnv.fillStyle(lerpColor(0x2d6e1a, 0x0a1a06, ni), treeFa);
                 this.gEnv.fillCircle(p.x, foliageCY, tr);
-                this.gEnv.fillStyle(0x3d8a25, fa * 0.75);
+                this.gEnv.fillStyle(lerpColor(0x3d8a25, 0x0e2208, ni), treeFa * 0.75);
                 this.gEnv.fillCircle(p.x - tr * 0.3, foliageCY - tr * 0.2, tr * 0.72);
+            }
+
+            // Lamp post (fades in at night)
+            if (lampFade > 0) {
+                const lfa = fa * lampFade;
+                const th = Math.max(6, 80 * p.s);
+                const tw = Math.max(2, 7 * p.s);
+                const lr = Math.max(3, 10 * p.s);
+                this.gEnv.fillStyle(0x7788aa, lfa);
+                this.gEnv.fillRect(p.x - tw / 2, p.y - th, tw, th);
+                this.gEnv.fillRect(p.x - tw / 2, p.y - th, tw * 3, tw);
+                // Lamp glow
+                this.gEnv.fillStyle(0xfff0cc, lfa);
+                this.gEnv.fillCircle(p.x + tw * 1.5, p.y - th, lr);
+                // Light cone
+                if (lampFade > 0.3) {
+                    const coneA = lfa * (lampFade - 0.3) * 0.35;
+                    this.gEnv.fillStyle(0xfff0aa, coneA);
+                    this.gEnv.fillTriangle(
+                        p.x + tw * 1.5, p.y - th + lr,
+                        p.x + tw * 1.5 - lr * 3, p.y - th + lr * 5,
+                        p.x + tw * 1.5 + lr * 3, p.y - th + lr * 5
+                    );
+                }
             }
         }
 
@@ -666,6 +767,80 @@ export class Game extends Scene {
         g.fillCircle(cx + bw * 0.44, cy + bh * 0.3, wr);
     }
 
+    showEnemyCrash(sprite, z, lane) {
+        const ep = proj(LANE_CENTERS[lane], Math.max(z, 1));
+        const sx = ep.x, sy = ep.y, ss = ep.s;
+
+        // Camera shake on impact
+        this.cameras.main.shake(250, 0.008);
+
+        // Instant white impact flash
+        const impact = this.add.graphics().setDepth(12);
+        impact.fillStyle(0xffffff, 0.9);
+        impact.fillCircle(sx, sy, 36 * ss);
+        this.tweens.add({ targets: impact, alpha: 0, duration: 160,
+            onComplete: () => impact.destroy() });
+
+        // Expanding orange ring
+        const ring = this.add.graphics().setDepth(11);
+        ring.lineStyle(5 * ss, 0xff6600, 1);
+        ring.strokeCircle(sx, sy, 20 * ss);
+        this.tweens.add({ targets: ring, scaleX: 4, scaleY: 4, alpha: 0,
+            duration: 600, ease: 'Cubic.easeOut',
+            onComplete: () => ring.destroy() });
+
+        // Car tumbles forward and fades (longer)
+        this.tweens.add({
+            targets: sprite,
+            y: sprite.y + 60 * ss,
+            rotation: sprite.rotation + Math.PI * 2.5,
+            scaleX: 0.05, scaleY: 0.05,
+            alpha: 0,
+            duration: 900,
+            ease: 'Cubic.easeIn',
+            onComplete: () => sprite.destroy()
+        });
+
+        // Sparks (more, fly further)
+        const sparkCols = [0xff8800, 0xffdd00, 0xff4400, 0xffffff];
+        for (let k = 0; k < 14; k++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist  = (55 + Math.random() * 80) * ss;
+            const spark = this.add.graphics().setDepth(12);
+            spark.fillStyle(sparkCols[k % sparkCols.length], 1);
+            spark.fillCircle(0, 0, (2 + Math.random() * 3.5) * ss);
+            spark.setPosition(sx, sy);
+            this.tweens.add({
+                targets: spark,
+                x: sx + Math.cos(angle) * dist,
+                y: sy + Math.sin(angle) * dist,
+                alpha: 0, scaleX: 0.1, scaleY: 0.1,
+                duration: 500 + Math.random() * 350,
+                ease: 'Cubic.easeOut',
+                onComplete: () => spark.destroy()
+            });
+        }
+
+        // Smoke puffs (linger longer)
+        for (let k = 0; k < 5; k++) {
+            const smoke = this.add.graphics().setDepth(10);
+            smoke.fillStyle(0x999999, 0.5);
+            smoke.fillCircle(0, 0, (11 + Math.random() * 9) * ss);
+            smoke.setPosition(sx + (Math.random() - 0.5) * 26 * ss, sy);
+            this.tweens.add({
+                targets: smoke,
+                scaleX: 3 + Math.random(),
+                scaleY: 3 + Math.random(),
+                alpha: 0,
+                y: sy - (35 + Math.random() * 30) * ss,
+                duration: 850 + Math.random() * 400,
+                delay: k * 100,
+                ease: 'Cubic.easeOut',
+                onComplete: () => smoke.destroy()
+            });
+        }
+    }
+
     die() {
         this.over = true;
 
@@ -689,7 +864,7 @@ export class Game extends Scene {
                     stroke: '#000000', strokeThickness: 4
                 }).setOrigin(0.5).setDepth(22);
                 this.time.delayedCall(2500, () => {
-                    this.scene.start('Game', { mp: true, player: 2, p1Score });
+                    this.scene.start('Game', { mp: true, player: 2, p1Score, p1Car: this.mpP1Car, p2Car: this.mpP2Car });
                 });
             } else {
                 this.time.delayedCall(600, () => this.showLeaderboard(this.mpP1Score, this.score));
@@ -807,7 +982,7 @@ export class Game extends Scene {
         };
 
         makeBtn(W / 2, 560, 260, '🔄  REMATCH',  0x880000, 0xcc2222,
-            () => this.scene.start('Game', { mp: true, player: 1, p1Score: 0 }));
+            () => this.scene.start('Game', { mp: true, player: 1, p1Score: 0, p1Car: this.mpP1Car, p2Car: this.mpP2Car }));
         makeBtn(W / 2, 638, 260, '← MAIN MENU', 0x333333, 0x555555,
             () => this.scene.start('Menu'));
     }

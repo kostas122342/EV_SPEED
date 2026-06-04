@@ -1,8 +1,9 @@
 import { Game as MainGame } from './scenes/Game';
 import { Menu } from './scenes/Menu';
 import { Capsule } from './scenes/Capsule';
-import { Garage } from './scenes/Garage';
 import { Shop } from './scenes/Shop';
+import { MPCarSelect } from './scenes/MPCarSelect';
+import { Settings } from './scenes/Settings';
 import { AUTO, Scale, Game } from 'phaser';
 
 // Find out more information about the Game Config at:
@@ -26,8 +27,9 @@ const config = {
         Menu,
         MainGame,
         Capsule,
-        Garage,
-        Shop
+        Shop,
+        MPCarSelect,
+        Settings
     ]
 };
 
