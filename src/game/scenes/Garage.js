@@ -8,6 +8,8 @@ const CARS = [
     { key: 'modelY',    asset: 'assets/modelY.png',   name: 'EV Y',         unlockKey: 'evspeed_carY',  scale: 0.10, offY: -12, offX: 0  },
     { key: 'evS',       asset: 'assets/evS.png',      name: 'EV S',         unlockKey: 'evspeed_evS',   scale: 0.14, offY: -40, offX: 0  },
     { key: 'evX',       asset: 'assets/evX.png',      name: 'EV X',         unlockKey: 'evspeed_evX',   scale: 0.10, offY: -40, offX: 0  },
+    { key: 'cbt',       asset: 'assets/CBT.png',      name: 'CBT',          unlockKey: 'evspeed_cbt',      scale: 0.12, offY: -40, offX: 0  },
+    { key: 'scooter',   asset: 'assets/SCOOTER.png',  name: 'SCOOTER',      unlockKey: 'evspeed_scooter',  scale: 0.15, offY: -40, offX: 0  },
 ];
 
 const POSITIONS = [
@@ -16,10 +18,12 @@ const POSITIONS = [
     { cx: 412, cy: 310 },
     { cx: 68,  cy: 630 },
     { cx: 240, cy: 630 },
+    { cx: 412, cy: 630 },
+    { cx: 68,  cy: 950 },
 ];
 
 const CARD_W = 128, CARD_H = 290;
-const CONTENT_BOTTOM = 1010;
+const CONTENT_BOTTOM = 1320;
 const MAX_SCROLL = Math.max(0, CONTENT_BOTTOM - H);  // 340
 
 export class Garage extends Scene {
@@ -31,6 +35,8 @@ export class Garage extends Scene {
         this.load.image('evS',       'assets/evS.png');
         this.load.image('evX',       'assets/evX.png');
         this.load.image('modelY',    'assets/modelY.png');
+        this.load.image('cbt',       'assets/CBT.png');
+        this.load.image('scooter',   'assets/SCOOTER.png');
         this.load.image('menuBg',    'assets/EVSPEED.png');
     }
 

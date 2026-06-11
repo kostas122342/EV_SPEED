@@ -86,6 +86,10 @@ export class Settings extends Scene {
                 draw(next);
                 stateTxt.setText(next ? 'ON' : 'OFF');
                 stateTxt.setColor(next ? '#00cfff' : '#556677');
+                if (s.key === 'evspeed_music') {
+                    const bgMusic = this.sound.get('bgMusic');
+                    if (bgMusic) { if (next) bgMusic.play(); else bgMusic.stop(); }
+                }
             });
         });
 

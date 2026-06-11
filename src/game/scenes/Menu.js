@@ -9,11 +9,18 @@ export class Menu extends Scene {
         this.load.image('menuBg',   'assets/EVSPEED.png');
         this.load.image('playerCar', 'assets/CarFinal.png');
         this.load.image('energyLogo', 'assets/En4.png');
+        this.load.audio('bgMusic', 'assets/EvSong.mp3');
     }
 
     create() {
         this.textures.get('energyLogo').setFilter(Textures.FilterMode.LINEAR);
         const totalEnergy = parseInt(localStorage.getItem('evspeed_energy') || '0');
+
+        const musicOn = localStorage.getItem('evspeed_music') !== 'false';
+        let bgMusic = this.sound.get('bgMusic');
+        if (!bgMusic) bgMusic = this.sound.add('bgMusic', { loop: true, volume: 0.45 });
+        if (musicOn && !bgMusic.isPlaying) bgMusic.play();
+        else if (!musicOn && bgMusic.isPlaying) bgMusic.stop();
 
         // Background
         this.add.image(W / 2, H / 2, 'menuBg')
@@ -69,11 +76,11 @@ export class Menu extends Scene {
         }).setOrigin(0.5).setDepth(11);
 
         this.makeModalButton(W / 2, H / 2 - 20, 240, 56, '👤  1 PLAYER',
-            () => this.scene.start('Game', { mp: false }),
+            () => this.scene.start('MPCarSelect', { mode: 'single' }),
             [0x880000, 0xaa0000, 0xdd2222]);
 
         this.makeModalButton(W / 2, H / 2 + 60, 240, 56, '👥  2 PLAYERS',
-            () => this.scene.start('MPCarSelect'),
+            () => this.scene.start('MPCarSelect', { mode: 'multi' }),
             [0x005533, 0x007744, 0x22aa66]);
 
         this.makeModalButton(W / 2, H / 2 + 148, 160, 44, '← BACK',

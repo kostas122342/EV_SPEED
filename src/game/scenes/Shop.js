@@ -3,11 +3,13 @@ import { Scene } from 'phaser';
 const W = 480, H = 720;
 
 const SHOP_CARS = [
-    { key: 'playerCar', name: 'EV 3 - WHITE', unlockKey: null,           price: 0,    scale: 0.23, offY: -80, offX: 0 },
+    { key: 'playerCar', name: 'EV 3 - WHITE', unlockKey: null,           price: 0,    scale: 0.23, offY: -92, offX: 0 },
     { key: 'car2',      name: 'EV 3 - RED',   unlockKey: 'evspeed_car2', price: 200,  scale: 0.20, offY: -82, offX: 4 },
     { key: 'modelY',    name: 'EV Y',          unlockKey: 'evspeed_carY', price: 600,  scale: 0.10, offY: -28, offX: 0 },
     { key: 'evS',       name: 'EV S',          unlockKey: 'evspeed_evS',  price: 2000, scale: 0.14, offY: -40, offX: 0 },
     { key: 'evX',       name: 'EV X',          unlockKey: 'evspeed_evX',  price: 3000, scale: 0.10, offY: -40, offX: 0 },
+    { key: 'cbt',       name: 'CBT',           unlockKey: 'evspeed_cbt',    price: 4000,  scale: 0.12, offY: -40, offX: 0 },
+    { key: 'scooter',   name: 'SCOOTER',       unlockKey: 'evspeed_scooter', price: 5000,  scale: 0.10, offY: -40, offX: 0 },
 ];
 
 const POSITIONS = [
@@ -15,11 +17,13 @@ const POSITIONS = [
     { cx: 360, cy: 300 },
     { cx: 120, cy: 610 },
     { cx: 360, cy: 610 },
-    { cx: 240, cy: 920 },
+    { cx: 120, cy: 920 },
+    { cx: 360, cy: 920 },
+    { cx: 240, cy: 1230 },
 ];
 
 const CARD_W = 190, CARD_H = 280;
-const CONTENT_BOTTOM = 920 + CARD_H / 2 + 20;
+const CONTENT_BOTTOM = 1230 + CARD_H / 2 + 20;
 const MAX_SCROLL = Math.max(0, CONTENT_BOTTOM - (H - 122));
 
 export class Shop extends Scene {
@@ -31,6 +35,8 @@ export class Shop extends Scene {
         this.load.image('evS',        'assets/evS.png');
         this.load.image('evX',        'assets/evX.png');
         this.load.image('modelY',     'assets/modelY.png');
+        this.load.image('cbt',        'assets/CBT.png');
+        this.load.image('scooter',    'assets/SCOOTER.png');
         this.load.image('menuBg',     'assets/EVSPEED.png');
         this.load.image('energyLogo', 'assets/En4.png');
     }

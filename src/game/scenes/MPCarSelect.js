@@ -5,12 +5,27 @@ const CX1 = 118, CX2 = 362;
 const CAR_Y  = 272;
 const CARD_W = 185, CARD_H = 262;
 
+const DRIVER_NAMES = [
+    'Furious Jack', 'Iron Mia',    'Thunder Kai',  'Reckless Nico',
+    'Storm Lexa',   'Viper Sam',   'Blaze Rio',    'Shadow Zoe',
+    'Nitro Ace',    'Ghost Max',   'Turbo Lena',   'Drift King',
+    'Phantom Eva',  'Speed Demon', 'Crazy Fox',    'Wild Cat',
+    'Dark Horse',   'Fast Eddie',  'Rocket Roy',   'Inferno Pete',
+    'Bullet Hank',  'Neon Vera',   'Crash Dante',  'Laser Quinn',
+    'Savage Teo',   'Cyclone Bex', 'Cobra Nash',   'Toxic Finn',
+    'Flashpoint Al','Steel Maya',  'Havoc Cruz',   'Icy Renee',
+    'Mad Dog Sal',  'Voltage Kim', 'Rampage Luke', 'Starfire Jess',
+    'Outlaw Dex',   'Banshee Nora','Gravel Rex',   'Hyper Tasha',
+];
+
 const ALL_CARS = [
     { key: 'playerCar', name: 'EV 3 - WHITE', unlockKey: null,           scale: 0.23, offY: -80, offX: 0 },
     { key: 'car2',      name: 'EV 3 - RED',   unlockKey: 'evspeed_car2', scale: 0.20, offY: -70, offX: 4 },
     { key: 'modelY',    name: 'EV Y',          unlockKey: 'evspeed_carY', scale: 0.10, offY: -12, offX: 0 },
-    { key: 'evS',       name: 'EV S',          unlockKey: 'evspeed_evS',  scale: 0.14, offY: -40, offX: 0 },
-    { key: 'evX',       name: 'EV X',          unlockKey: 'evspeed_evX',  scale: 0.10, offY: -40, offX: 0 },
+    { key: 'evS',       name: 'EV S',          unlockKey: 'evspeed_evS',  scale: 0.14, offY: -18, offX: 0 },
+    { key: 'evX',       name: 'EV X',          unlockKey: 'evspeed_evX',  scale: 0.10, offY: -18, offX: 0 },
+    { key: 'cbt',       name: 'CBT',           unlockKey: 'evspeed_cbt',     scale: 0.12, offY: -18, offX: 0 },
+    { key: 'scooter',   name: 'SCOOTER',       unlockKey: 'evspeed_scooter', scale: 0.10, offY: -15, offX: 0 },
 ];
 
 export class MPCarSelect extends Scene {
@@ -22,13 +37,26 @@ export class MPCarSelect extends Scene {
         this.load.image('evS',       'assets/evS.png');
         this.load.image('evX',       'assets/evX.png');
         this.load.image('modelY',    'assets/modelY.png');
+        this.load.image('cbt',       'assets/CBT.png');
+        this.load.image('scooter',   'assets/SCOOTER.png');
         this.load.image('menuBg',    'assets/EVSPEED.png');
     }
 
     create() {
+        const data = this.scene.settings.data || {};
+        this.isSingle = data.mode === 'single';
+
         this.cars  = ALL_CARS.filter(c => !c.unlockKey || localStorage.getItem(c.unlockKey) === 'true');
-        this.p1Idx = 0;
+        const lastCar = localStorage.getItem('evspeed_selected_car') || 'playerCar';
+        const lastIdx = this.cars.findIndex(c => c.key === lastCar);
+        this.p1Idx = this.isSingle ? (lastIdx >= 0 ? lastIdx : 0) : 0;
         this.p2Idx = this.cars.length > 1 ? 1 : 0;
+
+        const i1 = Math.floor(Math.random() * DRIVER_NAMES.length);
+        let i2;
+        do { i2 = Math.floor(Math.random() * DRIVER_NAMES.length); } while (i2 === i1);
+        this.p1DriverName = DRIVER_NAMES[i1];
+        this.p2DriverName = DRIVER_NAMES[i2];
 
         // Background
         this.add.image(W / 2, H / 2, 'menuBg').setDisplaySize(W, H).setDepth(0);
@@ -40,72 +68,96 @@ export class MPCarSelect extends Scene {
         const topChrome = this.add.graphics().setDepth(9);
         topChrome.fillStyle(0x000000, 0.65);
         topChrome.fillRect(0, 0, W, 82);
-        this.add.text(W / 2, 52, 'SELECT CARS', {
+        this.add.text(W / 2, 52, this.isSingle ? 'SELECT CAR' : 'SELECT CARS', {
             fontFamily: 'Arial Black', fontSize: 28, color: '#ffffff',
             stroke: '#0033aa', strokeThickness: 7
         }).setOrigin(0.5).setDepth(10);
 
-        // Soft centre divider
-        const divGfx = this.add.graphics().setDepth(2);
-        divGfx.lineStyle(3, 0xffffff, 0.5);
-        divGfx.lineBetween(W / 2, 88, W / 2, H - 130);
+        if (this.isSingle) {
+            // ── SINGLE PLAYER: one centred card ──────────────────────
+            const cx = W / 2;
 
-        // Player labels
-        this.add.text(CX1, 108, 'PLAYER 1', {
-            fontFamily: 'Arial Black', fontSize: 15, color: '#00cfff',
-            stroke: '#000000', strokeThickness: 4
-        }).setOrigin(0.5).setDepth(3);
-        this.add.text(CX2, 108, 'PLAYER 2', {
-            fontFamily: 'Arial Black', fontSize: 15, color: '#ff7744',
-            stroke: '#000000', strokeThickness: 4
-        }).setOrigin(0.5).setDepth(3);
+            this.p1Card = this.add.graphics().setDepth(2);
+            this.drawCard(this.p1Card, cx, 0x00cfff);
 
-        // Cards
-        this.p1Card = this.add.graphics().setDepth(2);
-        this.p2Card = this.add.graphics().setDepth(2);
-        this.drawCard(this.p1Card, CX1, 0x00cfff);
-        this.drawCard(this.p2Card, CX2, 0xff7744);
+            const c1 = this.cars[this.p1Idx];
+            this.p1Img = this.add.image(cx + c1.offX, CAR_Y + c1.offY, c1.key)
+                .setScale(c1.scale).setOrigin(0.5).setDepth(4);
 
-        // Car images
-        const c1 = this.cars[this.p1Idx], c2 = this.cars[this.p2Idx];
-        this.p1Img = this.add.image(CX1 + c1.offX, CAR_Y + c1.offY, c1.key)
-            .setScale(c1.scale).setOrigin(0.5).setDepth(4);
-        this.p2Img = this.add.image(CX2 + c2.offX, CAR_Y + c2.offY, c2.key)
-            .setScale(c2.scale).setOrigin(0.5).setDepth(4);
-
-        // Separator lines inside cards
-        const sepY = CAR_Y + CARD_H / 2 - 68;
-        [CX1, CX2].forEach(cx => {
+            const sepY = CAR_Y + CARD_H / 2 - 68;
             const sg = this.add.graphics().setDepth(3);
             sg.lineStyle(1, 0x1e2e44, 1);
             sg.lineBetween(cx - CARD_W / 2 + 12, sepY, cx + CARD_W / 2 - 12, sepY);
-        });
 
-        // Car names
-        const nameY = CAR_Y + CARD_H / 2 - 52;
-        this.p1Name = this.add.text(CX1, nameY, c1.name, {
-            fontFamily: 'Arial Black', fontSize: 13, color: '#ccd8ee',
-            stroke: '#000000', strokeThickness: 2
-        }).setOrigin(0.5).setDepth(4);
-        this.p2Name = this.add.text(CX2, nameY, c2.name, {
-            fontFamily: 'Arial Black', fontSize: 13, color: '#ccd8ee',
-            stroke: '#000000', strokeThickness: 2
-        }).setOrigin(0.5).setDepth(4);
+            const nameY = CAR_Y + CARD_H / 2 - 52;
+            this.p1Name = this.add.text(cx, nameY, c1.name, {
+                fontFamily: 'Arial Black', fontSize: 13, color: '#ccd8ee',
+                stroke: '#000000', strokeThickness: 2
+            }).setOrigin(0.5).setDepth(4);
 
-        // Dot indicators
-        const dotY = CAR_Y + CARD_H / 2 - 28;
-        this.p1Dots = this.add.graphics().setDepth(4);
-        this.p2Dots = this.add.graphics().setDepth(4);
-        this.drawDots(this.p1Dots, CX1, dotY, this.p1Idx);
-        this.drawDots(this.p2Dots, CX2, dotY, this.p2Idx);
+            const dotY = CAR_Y + CARD_H / 2 - 28;
+            this.p1Dots = this.add.graphics().setDepth(4);
+            this.drawDots(this.p1Dots, cx, dotY, this.p1Idx);
 
-        // Arrow buttons (inside card, flanking dots)
-        if (this.cars.length > 1) {
-            const arrowY = dotY;
-            this.makeArrow(CX1 - 58, arrowY, '◄', () => this.changeCar(1, -1));
-            this.makeArrow(CX1 + 58, arrowY, '►', () => this.changeCar(1, +1));
-            this.makeArrow(CX2 - 58, arrowY, '◄', () => this.changeCar(2, -1));
-            this.makeArrow(CX2 + 58, arrowY, '►', () => this.changeCar(2, +1));
+            if (this.cars.length > 1) {
+                this.makeArrow(cx - 58, dotY, '◄', () => this.changeCar(1, -1));
+                this.makeArrow(cx + 58, dotY, '►', () => this.changeCar(1, +1));
+            }
+        } else {
+            // ── MULTIPLAYER: two columns ──────────────────────────────
+            const divGfx = this.add.graphics().setDepth(2);
+            divGfx.lineStyle(3, 0xffffff, 0.5);
+            divGfx.lineBetween(W / 2, 88, W / 2, H - 130);
+
+            this.add.text(CX1, 108, this.p1DriverName, {
+                fontFamily: 'Arial Black', fontSize: 15, color: '#00cfff',
+                stroke: '#000000', strokeThickness: 4
+            }).setOrigin(0.5).setDepth(3);
+            this.add.text(CX2, 108, this.p2DriverName, {
+                fontFamily: 'Arial Black', fontSize: 15, color: '#ff7744',
+                stroke: '#000000', strokeThickness: 4
+            }).setOrigin(0.5).setDepth(3);
+
+            this.p1Card = this.add.graphics().setDepth(2);
+            this.p2Card = this.add.graphics().setDepth(2);
+            this.drawCard(this.p1Card, CX1, 0x00cfff);
+            this.drawCard(this.p2Card, CX2, 0xff7744);
+
+            const c1 = this.cars[this.p1Idx], c2 = this.cars[this.p2Idx];
+            this.p1Img = this.add.image(CX1 + c1.offX, CAR_Y + c1.offY, c1.key)
+                .setScale(c1.scale).setOrigin(0.5).setDepth(4);
+            this.p2Img = this.add.image(CX2 + c2.offX, CAR_Y + c2.offY, c2.key)
+                .setScale(c2.scale).setOrigin(0.5).setDepth(4);
+
+            const sepY = CAR_Y + CARD_H / 2 - 68;
+            [CX1, CX2].forEach(cx => {
+                const sg = this.add.graphics().setDepth(3);
+                sg.lineStyle(1, 0x1e2e44, 1);
+                sg.lineBetween(cx - CARD_W / 2 + 12, sepY, cx + CARD_W / 2 - 12, sepY);
+            });
+
+            const nameY = CAR_Y + CARD_H / 2 - 52;
+            this.p1Name = this.add.text(CX1, nameY, c1.name, {
+                fontFamily: 'Arial Black', fontSize: 13, color: '#ccd8ee',
+                stroke: '#000000', strokeThickness: 2
+            }).setOrigin(0.5).setDepth(4);
+            this.p2Name = this.add.text(CX2, nameY, c2.name, {
+                fontFamily: 'Arial Black', fontSize: 13, color: '#ccd8ee',
+                stroke: '#000000', strokeThickness: 2
+            }).setOrigin(0.5).setDepth(4);
+
+            const dotY = CAR_Y + CARD_H / 2 - 28;
+            this.p1Dots = this.add.graphics().setDepth(4);
+            this.p2Dots = this.add.graphics().setDepth(4);
+            this.drawDots(this.p1Dots, CX1, dotY, this.p1Idx);
+            this.drawDots(this.p2Dots, CX2, dotY, this.p2Idx);
+
+            if (this.cars.length > 1) {
+                this.makeArrow(CX1 - 58, dotY, '◄', () => this.changeCar(1, -1));
+                this.makeArrow(CX1 + 58, dotY, '►', () => this.changeCar(1, +1));
+                this.makeArrow(CX2 - 58, dotY, '◄', () => this.changeCar(2, -1));
+                this.makeArrow(CX2 + 58, dotY, '►', () => this.changeCar(2, +1));
+            }
         }
 
         // Bottom chrome
@@ -117,11 +169,16 @@ export class MPCarSelect extends Scene {
         this.makeBtn(W / 2, H - 76, 220, 54, 'START',
             [0x005533, 0x007744, 0x22aa66], () => {
                 const p1Car = this.cars[this.p1Idx].key;
-                const p2Car = this.cars[this.p2Idx].key;
-                this.scene.start('Game', { mp: true, player: 1, p1Score: 0, p1Car, p2Car });
+                if (this.isSingle) {
+                    localStorage.setItem('evspeed_selected_car', p1Car);
+                    this.scene.start('Game', { mp: false, carKey: p1Car });
+                } else {
+                    const p2Car = this.cars[this.p2Idx].key;
+                    this.scene.start('Game', { mp: true, player: 1, p1Score: 0, p1Car, p2Car, p1Name: this.p1DriverName, p2Name: this.p2DriverName });
+                }
             });
 
-        // BACK as minimal text
+        // BACK
         const backTxt = this.add.text(W / 2, H - 22, '← BACK', {
             fontFamily: 'Arial Black', fontSize: 14, color: '#667788',
             stroke: '#000000', strokeThickness: 2
@@ -205,9 +262,10 @@ export class MPCarSelect extends Scene {
         if (player === 1) {
             this.p1Idx = (this.p1Idx + dir + this.cars.length) % this.cars.length;
             const c = this.cars[this.p1Idx];
-            this.p1Img.setTexture(c.key).setScale(c.scale).setPosition(CX1 + c.offX, CAR_Y + c.offY);
+            const cx = this.isSingle ? W / 2 : CX1;
+            this.p1Img.setTexture(c.key).setScale(c.scale).setPosition(cx + c.offX, CAR_Y + c.offY);
             this.p1Name.setText(c.name);
-            this.drawDots(this.p1Dots, CX1, dotY, this.p1Idx);
+            this.drawDots(this.p1Dots, cx, dotY, this.p1Idx);
         } else {
             this.p2Idx = (this.p2Idx + dir + this.cars.length) % this.cars.length;
             const c = this.cars[this.p2Idx];

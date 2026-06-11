@@ -49,11 +49,17 @@ export class Game extends Scene {
         this.load.image('evS',        'assets/evS.png');
         this.load.image('evX',        'assets/evX.png');
         this.load.image('modelY',     'assets/modelY.png');
+        this.load.image('cbt',        'assets/CBT.png');
+        this.load.image('scooter',    'assets/SCOOTER.png');
         this.load.image('obstacle',   'assets/obstacle.png');
         this.load.image('truck',      'assets/Truck.png');
         this.load.image('energyLogo', 'assets/En4.png');
         this.load.image('energyCoin', 'assets/Energy.png');
         this.load.image('tree',       'assets/tree.png');
+        this.load.audio('energyBeat', 'assets/energyBeat.mp3');
+        this.load.audio('bombBeat',   'assets/bombBeat.mp3');
+        this.load.audio('lazerBeat',   'assets/lazerBeat.mp3');
+        this.load.audio('countdown',   'assets/countdown.mp3');
     }
 
     create() {
@@ -64,6 +70,8 @@ export class Game extends Scene {
         this.mpP1Score   = mpData.p1Score || 0;
         this.mpP1Car     = mpData.p1Car   || 'playerCar';
         this.mpP2Car     = mpData.p2Car   || 'playerCar';
+        this.mpP1Name    = mpData.p1Name  || 'PLAYER 1';
+        this.mpP2Name    = mpData.p2Name  || 'PLAYER 2';
         this.started     = !this.mp;
 
         this.dist   = 0;
@@ -81,6 +89,11 @@ export class Game extends Scene {
         this.energy  = 0;
         this.over    = false;
         this.homeDown = false;
+        this.powerups     = { clearLane: 0, megaBomb: 0 };
+        this.powerupItems = [];
+        this.puFlashT     = 0;
+        this.puBombT      = 0;
+
         this.lk = false; this.rk = false;
         this.sx = 0;     this.sy = 0;
         this.moveDir = 0;
@@ -106,18 +119,20 @@ export class Game extends Scene {
         this.gCar   = this.add.graphics().setDepth(3);
 
         this.carRot = 0;
-        const mpCarKey = this.mp ? (this.mpPlayer === 1 ? mpData.p1Car : mpData.p2Car) : null;
+        const mpCarKey = this.mp ? (this.mpPlayer === 1 ? mpData.p1Car : mpData.p2Car) : (mpData.carKey || null);
         const selectedCar = mpCarKey || localStorage.getItem('evspeed_selected_car') || 'playerCar';
         this.selectedCar = selectedCar;
-        const CAR_SCALES = { playerCar: 0.32, car2: 0.27, evS: 0.17, evX: 0.114, modelY: 0.1365 };
-        this.playerSprite = this.add.image(this.px, H - 80, selectedCar)
+        const CAR_SCALES = { playerCar: 0.32, car2: 0.27, evS: 0.17, evX: 0.114, modelY: 0.1365, cbt: 0.16, scooter: 0.11 };
+        this.playerSprite = this.add.image(this.px, H - 140, selectedCar)
             .setScale(CAR_SCALES[selectedCar] ?? 0.32)
             .setOrigin(0.5, 0.76)
             .setDepth(3.5);
 
         const uiBg = this.add.graphics().setDepth(8);
-        uiBg.fillStyle(0x000000, 0.32);
-        uiBg.fillRoundedRect(W - 136, 4, 132, 76, 8);
+        uiBg.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.52, 0, 0.52);
+        uiBg.fillRect(W - 170, 0, 170, 80);
+        uiBg.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.52, 0, 0);
+        uiBg.fillRect(W - 170, 80, 170, 34);
 
         this.tSc = this.add.text(W - 10, 10, 'SCORE: 0', {
             fontFamily: 'Arial', fontSize: 20, color: '#ffffff',
@@ -241,6 +256,20 @@ export class Game extends Scene {
             if (!this.over && this.started) this.score += Math.floor(10 + this.spd / 100);
         }});
 
+        this.time.addEvent({ delay: 8000, loop: true, callback: () => {
+            if (!this.over && this.started) {
+                const busy = new Set([
+                    ...this.enemies.filter(e => e.z > 900).map(e => e.lane),
+                    ...this.obstacles.filter(o => o.z > 900).map(o => o.lane),
+                ]);
+                const free = [0, 1, 2].filter(l => !busy.has(l));
+                if (free.length === 0) return;
+                const lane = free[Math.floor(Math.random() * free.length)];
+                const type = Math.random() < 0.78 ? 'clearLane' : 'megaBomb';
+                this.powerupItems.push({ z: Z_FAR, lane, type, collected: false });
+            }
+        }});
+
         // Home button (bottom right)
         const homeBg = this.add.graphics().setDepth(9);
         const drawHomeBg = (hover) => {
@@ -260,12 +289,20 @@ export class Game extends Scene {
         homeZone.on('pointerout',   () => drawHomeBg(false));
         homeZone.on('pointerdown',  () => { this.homeDown = true; this.scene.start('Menu'); });
 
+        // Power-up buttons (bottom-left)
+        this.puClrGfx = this.add.graphics().setDepth(9);
+        this.puBmbGfx = this.add.graphics().setDepth(9);
+        this.puClrIcon = this.add.text(45,  H - 57, '⚡', { fontSize: 20 }).setOrigin(0.5).setDepth(10);
+        this.puBmbIcon = this.add.text(105, H - 57, '💣', { fontSize: 20 }).setOrigin(0.5).setDepth(10);
+        this.puClrLbl  = this.add.text(45,  H - 24, 'CLR',  { fontFamily: 'Arial Black', fontSize: 12, color: '#00eeff', stroke: '#000000', strokeThickness: 3 }).setOrigin(0.5).setDepth(10);
+        this.puBmbLbl  = this.add.text(105, H - 24, 'BOMB', { fontFamily: 'Arial Black', fontSize: 12, color: '#ffaa44', stroke: '#000000', strokeThickness: 3 }).setOrigin(0.5).setDepth(10);
+        this.puClrCnt  = this.add.text(66,  H - 72, '',     { fontFamily: 'Arial Black', fontSize: 12, color: '#00ffff', stroke: '#000000', strokeThickness: 2 }).setOrigin(0.5).setDepth(10);
+        this.puBmbCnt  = this.add.text(126, H - 72, '',     { fontFamily: 'Arial Black', fontSize: 12, color: '#ffaa00', stroke: '#000000', strokeThickness: 2 }).setOrigin(0.5).setDepth(10);
+        this.add.zone(45,  H - 56, 52, 52).setInteractive().setDepth(11).on('pointerdown', () => this.activateClearLane());
+        this.add.zone(105, H - 56, 52, 52).setInteractive().setDepth(11).on('pointerdown', () => this.activateMegaBomb());
+        this.updatePowerupBtns();
+
         if (this.mp) {
-            this.add.text(12, 57, `P${this.mpPlayer}`, {
-                fontFamily: 'Arial Black', fontSize: 20,
-                color: this.mpPlayer === 1 ? '#00cfff' : '#ff9900',
-                stroke: '#000000', strokeThickness: 4
-            }).setOrigin(0, 0.5).setDepth(9);
             this.time.delayedCall(200, () => this.startCountdown());
         }
 
@@ -278,7 +315,7 @@ export class Game extends Scene {
         ov.fillStyle(0x000000, 0.70);
         ov.fillRect(0, 0, W, H);
 
-        const lbl = this.add.text(W / 2, H / 2 - 90, `PLAYER ${this.mpPlayer}`, {
+        const lbl = this.add.text(W / 2, H / 2 - 90, this.mpPlayer === 1 ? this.mpP1Name : this.mpP2Name, {
             fontFamily: 'Arial Black', fontSize: 34, color: col,
             stroke: '#000000', strokeThickness: 7
         }).setOrigin(0.5).setDepth(25);
@@ -290,6 +327,7 @@ export class Game extends Scene {
 
         const steps = ['3', '2', '1', 'GO!'];
         let i = 0;
+        this.playSfx('countdown', { volume: 0.8 });
         const tick = () => {
             numTxt.setText(steps[i]);
             numTxt.setScale(1.5);
@@ -317,15 +355,36 @@ export class Game extends Scene {
         this.lane = nl;
         this.moveDir = d;
 
-        const laneRot = [0.26, 0, -0.26];
-        this.tweens.add({
-            targets: this,
-            px: laneX(nl),
-            carRot: laneRot[nl],
-            duration: 140,
-            ease: 'Cubic.easeOut',
-            onComplete: () => { this.moving = false; }
-        });
+        if (this.selectedCar === 'scooter') {
+            const leanAngle   = d * 0.28;
+            const settleAngle = [0.26, 0, -0.26][nl];
+            this.tweens.add({
+                targets: this,
+                px: laneX(nl),
+                carRot: leanAngle,
+                duration: 160,
+                ease: 'Sine.easeOut',
+                onComplete: () => {
+                    this.moving = false;
+                    this.tweens.add({
+                        targets: this,
+                        carRot: settleAngle,
+                        duration: 420,
+                        ease: 'Sine.easeOut'
+                    });
+                }
+            });
+        } else {
+            const laneRot = [0.26, 0, -0.26];
+            this.tweens.add({
+                targets: this,
+                px: laneX(nl),
+                carRot: laneRot[nl],
+                duration: 140,
+                ease: 'Cubic.easeOut',
+                onComplete: () => { this.moving = false; }
+            });
+        }
 
     }
 
@@ -392,12 +451,14 @@ export class Game extends Scene {
                 this.obstacles.splice(i, 1);
             }
         }
-        // Spawn skid marks at all four wheels while changing lane
+        // Spawn skid marks while changing lane
         if (this.moving) {
             this.skidMarks.push({
-                lx: this.px - 62, rx: this.px + 62, y:  H - 68,
-                flx: this.px - 48, frx: this.px + 48, fy: H - 135,
-                alpha: 0.72
+                cx: this.px,
+                lx: this.px - 62, rx: this.px + 62, y:  H - 128,
+                flx: this.px - 48, frx: this.px + 48, fy: H - 195,
+                alpha: 0.72,
+                twoWheel: this.selectedCar === 'scooter'
             });
         }
 
@@ -428,9 +489,10 @@ export class Game extends Scene {
                 this.energies.splice(i, 1);
                 continue;
             }
-            if (!ec.collected && ec.z < Z_NEAR + 60 && ec.lane === this.lane) {
+            if (!ec.collected && ec.z < Z_NEAR + 130 && ec.lane === this.lane) {
                 ec.collected = true;
                 ec.sprite.setVisible(false);
+                this.playSfx('energyBeat', { volume: 0.25 });
                 this.energy++;
                 this.tEn.setText(': ' + this.energy);
                 const prev = parseInt(localStorage.getItem('evspeed_energy') || '0');
@@ -451,20 +513,46 @@ export class Game extends Scene {
             }
         }
 
+        for (let i = this.powerupItems.length - 1; i >= 0; i--) {
+            const pu = this.powerupItems[i];
+            pu.z -= this.spd * dt;
+            if (pu.z < Z_NEAR - 150) { this.powerupItems.splice(i, 1); continue; }
+            if (!pu.collected && pu.z < Z_NEAR + 130 && pu.lane === this.lane) {
+                pu.collected = true;
+                this.powerups[pu.type]++;
+                this.updatePowerupBtns();
+                const sp = proj(LANE_CENTERS[pu.lane], Math.max(pu.z, 1));
+                for (let k = 0; k < 18; k++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 90 + Math.random() * 200;
+                    this.sparks.push({
+                        x: sp.x, y: sp.y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed - 80,
+                        life: 1.0,
+                        size: 2.5 + Math.random() * 3.5,
+                        white: pu.type === 'megaBomb'
+                    });
+                }
+            }
+        }
+        if (this.puFlashT > 0) this.puFlashT -= dt;
+        if (this.puBombT  > 0) this.puBombT  -= dt;
+
         for (const e of this.enemies) {
             const ep   = proj(LANE_CENTERS[e.lane], Math.max(e.z, 1));
             const bodyY  = ep.y;
             const bodyHH = 5 * ep.s;
             const smallCar = this.selectedCar === 'evS' || this.selectedCar === 'modelY';
-            const frontBound = smallCar ? H - 162 : this.selectedCar === 'evX' ? H - 158 : H - 145;
-            if (bodyY + bodyHH < frontBound || bodyY - bodyHH > H - 55) continue;
-            const playerW = smallCar ? 26 : this.selectedCar === 'evX' ? 18 : 10;
+            const frontBound = smallCar ? H - 222 : this.selectedCar === 'evX' ? H - 218 : this.selectedCar === 'cbt' ? H - 212 : this.selectedCar === 'scooter' ? H - 216 : H - 205;
+            if (bodyY + bodyHH < frontBound || bodyY - bodyHH > H - 115) continue;
+            const playerW = smallCar ? 26 : this.selectedCar === 'evX' ? 18 : this.selectedCar === 'cbt' ? 14 : this.selectedCar === 'scooter' ? 16 : 10;
             const hw = 62 * ep.s + playerW;
             if (Math.abs(this.px - ep.x) < hw) { this.die(); return; }
         }
         for (const o of this.obstacles) {
             const op = proj(LANE_CENTERS[o.lane], Math.max(o.z, 1));
-            if (op.y + 20 * op.s < H - 145 || op.y - 20 * op.s > H - 29) continue;
+            if (op.y + 20 * op.s < (this.selectedCar === 'cbt' ? H - 212 : this.selectedCar === 'scooter' ? H - 216 : H - 205) || op.y - 20 * op.s > H - 89) continue;
             if (Math.abs(this.px - op.x) < 32 * op.s + 20) { this.die(); return; }
         }
 
@@ -720,6 +808,26 @@ export class Game extends Scene {
                 .setDepth(2.9 - ec.z / Z_FAR);
         }
 
+        // Power-up collectibles
+        for (const pu of this.powerupItems) {
+            if (pu.collected || pu.z <= 1 || pu.z > Z_FAR) continue;
+            const p = proj(LANE_CENTERS[pu.lane], pu.z);
+            if (p.y < HORIZON_Y || p.y > H + 80) continue;
+            const fa = smoothstep((p.y - HORIZON_Y - FOG_DENSE) / (FOG_H - FOG_DENSE));
+            const r = Math.max(7, 28 * p.s);
+            if (pu.type === 'clearLane') {
+                this.gCar.fillStyle(0x0055bb, fa * 0.9);
+                this.gCar.fillCircle(p.x, p.y, r);
+                this.gCar.fillStyle(0x00ddff, fa);
+                this.gCar.fillCircle(p.x, p.y, r * 0.6);
+            } else {
+                this.gCar.fillStyle(0xaa2200, fa * 0.9);
+                this.gCar.fillCircle(p.x, p.y, r);
+                this.gCar.fillStyle(0xff7700, fa);
+                this.gCar.fillCircle(p.x, p.y, r * 0.6);
+            }
+        }
+
         // Spark particles from energy collection
         for (const sk of this.sparks) {
             const r = Math.max(0.5, sk.size * sk.life);
@@ -732,13 +840,13 @@ export class Game extends Scene {
         }
 
         // Skid marks — twin thin lines per tyre (tyre-edge imprint)
-        const skidCol = this.selectedCar === 'modelY' ? 0x777777 : this.selectedCar === 'evS' ? 0x003899 : 0x000000;
+        const skidCol = this.selectedCar === 'modelY' ? 0x777777 : this.selectedCar === 'evS' ? 0x003899 : this.selectedCar === 'cbt' ? 0x00cfff : this.selectedCar === 'scooter' ? 0xffee00 : 0x000000;
         const isEvS = this.selectedCar === 'evS';
         for (const m of this.skidMarks) {
-            for (const [tx, ty, h] of [
-                [m.lx,  m.y,  8], [m.rx,  m.y,  8],
-                [m.flx, m.fy, 6], [m.frx, m.fy, 6]
-            ]) {
+            const pairs = m.twoWheel
+                ? [[m.cx, m.y, 8], [m.cx, m.fy, 6]]
+                : [[m.lx, m.y, 8], [m.rx, m.y, 8], [m.flx, m.fy, 6], [m.frx, m.fy, 6]];
+            for (const [tx, ty, h] of pairs) {
                 if (isEvS) {
                     this.gCar.fillStyle(0x000011, m.alpha * 0.45);
                     this.gCar.fillRect(tx - 3 + 1, ty - h / 2 + 1, 1.5, h);
@@ -748,6 +856,16 @@ export class Game extends Scene {
                 this.gCar.fillRect(tx - 3, ty - h / 2, 1.5, h);
                 this.gCar.fillRect(tx + 2, ty - h / 2, 1.5, h);
             }
+        }
+
+        // Power-up activation flash
+        if (this.puFlashT > 0) {
+            this.gCar.fillStyle(0x00aaff, Math.min(this.puFlashT / 0.4, 1) * 0.28);
+            this.gCar.fillRect(0, HORIZON_Y, W, H - HORIZON_Y);
+        }
+        if (this.puBombT > 0) {
+            this.gCar.fillStyle(0xff5500, Math.min(this.puBombT / 0.5, 1) * 0.42);
+            this.gCar.fillRect(0, 0, W, H);
         }
 
         this.playerSprite.setX(this.px).setRotation(this.carRot);
@@ -765,6 +883,123 @@ export class Game extends Scene {
         g.fillCircle(cx + bw * 0.44, cy - bh * 0.3, wr);
         g.fillCircle(cx - bw * 0.44, cy + bh * 0.3, wr);
         g.fillCircle(cx + bw * 0.44, cy + bh * 0.3, wr);
+    }
+
+    updatePowerupBtns() {
+        const clrHas = this.powerups.clearLane > 0;
+        const bmbHas = this.powerups.megaBomb  > 0;
+
+        this.puClrGfx.clear();
+        this.puClrGfx.fillStyle(clrHas ? 0x003388 : 0x1a1a1a, 0.88);
+        this.puClrGfx.fillCircle(45, H - 56, 26);
+        this.puClrGfx.lineStyle(2, clrHas ? 0x00cfff : 0x334455, clrHas ? 1 : 0.5);
+        this.puClrGfx.strokeCircle(45, H - 56, 26);
+
+        this.puBmbGfx.clear();
+        this.puBmbGfx.fillStyle(bmbHas ? 0x771100 : 0x1a1a1a, 0.88);
+        this.puBmbGfx.fillCircle(105, H - 56, 26);
+        this.puBmbGfx.lineStyle(2, bmbHas ? 0xff6600 : 0x443322, bmbHas ? 1 : 0.5);
+        this.puBmbGfx.strokeCircle(105, H - 56, 26);
+
+        this.puClrCnt.setText(clrHas ? `×${this.powerups.clearLane}` : '');
+        this.puBmbCnt.setText(bmbHas ? `×${this.powerups.megaBomb}`  : '');
+        this.puClrIcon.setAlpha(clrHas ? 1 : 0.35);
+        this.puBmbIcon.setAlpha(bmbHas ? 1 : 0.35);
+        this.puClrLbl.setAlpha(clrHas ? 1 : 0.35);
+        this.puBmbLbl.setAlpha(bmbHas ? 1 : 0.35);
+    }
+
+    playSfx(key, config = {}) {
+        if (localStorage.getItem('evspeed_sfx') === 'false') return;
+        this.sound.play(key, config);
+    }
+
+    activateClearLane() {
+        if (this.powerups.clearLane <= 0 || this.over || !this.started) return;
+        this.powerups.clearLane--;
+        this.updatePowerupBtns();
+        for (let i = this.enemies.length - 1; i >= 0; i--) {
+            if (this.enemies[i].lane === this.lane) {
+                this.showEnemyCrash(this.enemies[i].sprite, this.enemies[i].z, this.enemies[i].lane);
+                this.enemies.splice(i, 1);
+            }
+        }
+        for (let i = this.obstacles.length - 1; i >= 0; i--) {
+            if (this.obstacles[i].lane === this.lane) {
+                this.showObstacleClear(this.obstacles[i].sprite, this.obstacles[i].z, this.obstacles[i].lane);
+                this.obstacles.splice(i, 1);
+            }
+        }
+        this.playSfx('lazerBeat', { volume: 0.7 });
+        this.puFlashT = 0.5;
+    }
+
+    activateMegaBomb() {
+        if (this.powerups.megaBomb <= 0 || this.over || !this.started) return;
+        this.powerups.megaBomb--;
+        this.updatePowerupBtns();
+        for (let i = this.enemies.length - 1; i >= 0; i--) {
+            this.showEnemyCrash(this.enemies[i].sprite, this.enemies[i].z, this.enemies[i].lane);
+            this.enemies.splice(i, 1);
+        }
+        for (let i = this.obstacles.length - 1; i >= 0; i--) {
+            this.showObstacleClear(this.obstacles[i].sprite, this.obstacles[i].z, this.obstacles[i].lane);
+            this.obstacles.splice(i, 1);
+        }
+        this.cameras.main.shake(300, 0.015);
+        this.playSfx('bombBeat', { volume: 0.7 });
+        this.puBombT = 0.6;
+    }
+
+    showObstacleClear(sprite, z, lane) {
+        const p  = proj(LANE_CENTERS[lane], Math.max(z, 1));
+        const ss = p.s;
+
+        // Cyan impact flash
+        const impact = this.add.graphics().setDepth(12);
+        impact.fillStyle(0x00ddff, 0.85);
+        impact.fillCircle(p.x, p.y, 32 * ss);
+        this.tweens.add({ targets: impact, alpha: 0, duration: 200,
+            onComplete: () => impact.destroy() });
+
+        // Expanding cyan ring
+        const ring = this.add.graphics().setDepth(11);
+        ring.lineStyle(4 * ss, 0x00aaff, 1);
+        ring.strokeCircle(p.x, p.y, 18 * ss);
+        this.tweens.add({ targets: ring, scaleX: 4, scaleY: 4, alpha: 0,
+            duration: 550, ease: 'Cubic.easeOut',
+            onComplete: () => ring.destroy() });
+
+        // Obstacle spins upward and fades
+        this.tweens.add({
+            targets: sprite,
+            y: sprite.y - 90 * ss,
+            rotation: sprite.rotation + Math.PI * 3,
+            scaleX: 0.05, scaleY: 0.05,
+            alpha: 0,
+            duration: 700,
+            ease: 'Cubic.easeOut',
+            onComplete: () => sprite.destroy()
+        });
+
+        // Cyan sparks
+        for (let k = 0; k < 10; k++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist  = (40 + Math.random() * 70) * ss;
+            const spark = this.add.graphics().setDepth(12);
+            spark.fillStyle(k % 2 === 0 ? 0x00ccff : 0xffffff, 1);
+            spark.fillCircle(0, 0, (2 + Math.random() * 3) * ss);
+            spark.setPosition(p.x, p.y);
+            this.tweens.add({
+                targets: spark,
+                x: p.x + Math.cos(angle) * dist,
+                y: p.y + Math.sin(angle) * dist,
+                alpha: 0, scaleX: 0.1, scaleY: 0.1,
+                duration: 400 + Math.random() * 300,
+                ease: 'Cubic.easeOut',
+                onComplete: () => spark.destroy()
+            });
+        }
     }
 
     showEnemyCrash(sprite, z, lane) {
@@ -855,8 +1090,8 @@ export class Game extends Scene {
                 const box = this.add.graphics().setDepth(21);
                 box.fillStyle(0x000000, 0.80);
                 box.fillRoundedRect(W / 2 - 160, H / 2 - 70, 320, 140, 12);
-                this.add.text(W / 2, H / 2 - 35, 'PLAYER 1 DONE', {
-                    fontFamily: 'Arial Black', fontSize: 26, color: '#00cfff',
+                this.add.text(W / 2, H / 2 - 35, `${this.mpP1Name} DONE`, {
+                    fontFamily: 'Arial Black', fontSize: 22, color: '#00cfff',
                     stroke: '#000000', strokeThickness: 5
                 }).setOrigin(0.5).setDepth(22);
                 this.add.text(W / 2, H / 2 + 10, 'SCORE: ' + p1Score, {
@@ -864,7 +1099,7 @@ export class Game extends Scene {
                     stroke: '#000000', strokeThickness: 4
                 }).setOrigin(0.5).setDepth(22);
                 this.time.delayedCall(2500, () => {
-                    this.scene.start('Game', { mp: true, player: 2, p1Score, p1Car: this.mpP1Car, p2Car: this.mpP2Car });
+                    this.scene.start('Game', { mp: true, player: 2, p1Score, p1Car: this.mpP1Car, p2Car: this.mpP2Car, p1Name: this.mpP1Name, p2Name: this.mpP2Name });
                 });
             } else {
                 this.time.delayedCall(600, () => this.showLeaderboard(this.mpP1Score, this.score));
@@ -946,7 +1181,7 @@ export class Game extends Scene {
                 box.strokeRoundedRect(W / 2 - 170, y - 44, 340, 88, 12);
                 this.add.text(W / 2 + 120, y - 8, '👑', { fontSize: 38 }).setOrigin(0.5).setDepth(25);
             }
-            this.add.text(W / 2 - 130, y - 16, `PLAYER ${playerNum}`, {
+            this.add.text(W / 2 - 130, y - 16, playerNum === 1 ? this.mpP1Name : this.mpP2Name, {
                 fontFamily: 'Arial Black', fontSize: 20, color: col,
                 stroke: '#000000', strokeThickness: 4
             }).setOrigin(0, 0.5).setDepth(25);
@@ -982,7 +1217,7 @@ export class Game extends Scene {
         };
 
         makeBtn(W / 2, 560, 260, '🔄  REMATCH',  0x880000, 0xcc2222,
-            () => this.scene.start('Game', { mp: true, player: 1, p1Score: 0, p1Car: this.mpP1Car, p2Car: this.mpP2Car }));
+            () => this.scene.start('Game', { mp: true, player: 1, p1Score: 0, p1Car: this.mpP1Car, p2Car: this.mpP2Car, p1Name: this.mpP1Name, p2Name: this.mpP2Name }));
         makeBtn(W / 2, 638, 260, '← MAIN MENU', 0x333333, 0x555555,
             () => this.scene.start('Menu'));
     }
