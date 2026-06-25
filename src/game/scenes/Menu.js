@@ -9,7 +9,8 @@ export class Menu extends Scene {
         this.load.image('menuBg',   'assets/EVSPEED.png');
         this.load.image('playerCar', 'assets/CarFinal.png');
         this.load.image('energyLogo', 'assets/En4.png');
-        this.load.audio('bgMusic', 'assets/EvSong.mp3');
+        this.load.audio('bgMusic',  'assets/EvSong.mp3');
+        this.load.image('infoPanel', 'assets/info.png');
     }
 
     create() {
@@ -44,6 +45,19 @@ export class Menu extends Scene {
         const energyIcon = this.add.image(W - 135, 37, 'energyLogo')
             .setOrigin(0.5, 0.5).setScale(0.38).setDepth(3);
         this.menuGroup.add(energyTxt);
+
+        // Info button top-left
+        const infoBg = this.add.graphics().setDepth(3);
+        infoBg.fillStyle(0x000000, 0.45);
+        infoBg.fillCircle(28, 36, 18);
+        infoBg.lineStyle(1.5, 0xaaaaaa, 0.7);
+        infoBg.strokeCircle(28, 36, 18);
+        this.add.text(28, 36, 'i', {
+            fontFamily: 'Georgia, serif', fontSize: 20, color: '#ffffff',
+            fontStyle: 'italic', stroke: '#000000', strokeThickness: 2
+        }).setOrigin(0.5).setDepth(4);
+        this.add.zone(28, 36, 40, 40).setInteractive({ useHandCursor: true }).setDepth(5)
+            .on('pointerdown', () => this.showInfoOverlay());
 
         // START button
         this.makeButton(W / 2, 310, 240, 56, '▶  START', () => {
@@ -260,5 +274,26 @@ export class Menu extends Scene {
         }
 
         this.addShine(bx, by, bw, bh);
+    }
+
+    showInfoOverlay() {
+        const ov = this.add.graphics().setDepth(20);
+        ov.fillStyle(0x000000, 0.78);
+        ov.fillRect(0, 0, W, H);
+
+        const img = this.add.image(W / 2, H / 2, 'infoPanel')
+            .setDepth(21).setOrigin(0.5);
+        const scl = Math.min((W - 40) / img.width, (H - 100) / img.height);
+        img.setScale(scl);
+
+        const closeTxt = this.add.text(W / 2, H - 38, 'TAP TO CLOSE', {
+            fontFamily: 'Arial Black', fontSize: 13, color: '#aaaaaa',
+            stroke: '#000000', strokeThickness: 2
+        }).setOrigin(0.5).setDepth(21);
+
+        const closeZone = this.add.zone(W / 2, H / 2, W, H).setInteractive().setDepth(22);
+        closeZone.once('pointerdown', () => {
+            ov.destroy(); img.destroy(); closeTxt.destroy(); closeZone.destroy();
+        });
     }
 }

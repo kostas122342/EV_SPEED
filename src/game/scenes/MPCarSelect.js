@@ -109,14 +109,24 @@ export class MPCarSelect extends Scene {
             divGfx.lineStyle(3, 0xffffff, 0.5);
             divGfx.lineBetween(W / 2, 88, W / 2, H - 130);
 
-            this.add.text(CX1, 108, this.p1DriverName, {
+            this.p1LblTxt = this.add.text(CX1, 105, this.p1DriverName, {
                 fontFamily: 'Arial Black', fontSize: 15, color: '#00cfff',
                 stroke: '#000000', strokeThickness: 4
-            }).setOrigin(0.5).setDepth(3);
-            this.add.text(CX2, 108, this.p2DriverName, {
+            }).setOrigin(0.5).setDepth(3).setInteractive({ useHandCursor: true });
+            this.p2LblTxt = this.add.text(CX2, 105, this.p2DriverName, {
                 fontFamily: 'Arial Black', fontSize: 15, color: '#ff7744',
                 stroke: '#000000', strokeThickness: 4
+            }).setOrigin(0.5).setDepth(3).setInteractive({ useHandCursor: true });
+
+            this.add.text(CX1, 120, '✎ tap to edit', {
+                fontFamily: 'Arial', fontSize: 9, color: '#336688'
             }).setOrigin(0.5).setDepth(3);
+            this.add.text(CX2, 120, '✎ tap to edit', {
+                fontFamily: 'Arial', fontSize: 9, color: '#664433'
+            }).setOrigin(0.5).setDepth(3);
+
+            this.p1LblTxt.on('pointerdown', () => this.showNameInput(1));
+            this.p2LblTxt.on('pointerdown', () => this.showNameInput(2));
 
             this.p1Card = this.add.graphics().setDepth(2);
             this.p2Card = this.add.graphics().setDepth(2);
@@ -273,6 +283,55 @@ export class MPCarSelect extends Scene {
             this.p2Name.setText(c.name);
             this.drawDots(this.p2Dots, CX2, dotY, this.p2Idx);
         }
+    }
+
+    showNameInput(player) {
+        const canvas = this.sys.game.canvas;
+        const rect   = canvas.getBoundingClientRect();
+        const scaleX = rect.width  / W;
+        const scaleY = rect.height / H;
+        const gameX  = player === 1 ? CX1 : CX2;
+        const color  = player === 1 ? '#00cfff' : '#ff7744';
+        const border = player === 1 ? '#00cfff' : '#ff7744';
+
+        const inp = document.createElement('input');
+        inp.type      = 'text';
+        inp.maxLength = 18;
+        inp.value     = player === 1 ? this.p1DriverName : this.p2DriverName;
+        inp.style.cssText = `
+            position: fixed;
+            left:   ${rect.left + (gameX - 75) * scaleX}px;
+            top:    ${rect.top  + 89 * scaleY}px;
+            width:  ${150 * scaleX}px;
+            height: ${28 * scaleY}px;
+            background: rgba(0,8,22,0.97);
+            border: 2px solid ${border};
+            border-radius: 6px;
+            color: ${color};
+            font-family: Arial Black, sans-serif;
+            font-size: ${Math.max(16, 13 * scaleY)}px;
+            text-align: center;
+            outline: none;
+            z-index: 9999;
+            padding: 0 6px;
+            box-sizing: border-box;
+        `;
+        document.body.appendChild(inp);
+        inp.focus();
+        inp.select();
+
+        const done = () => {
+            const val = inp.value.trim();
+            const newName = val.length > 0 ? val : (player === 1 ? this.p1DriverName : this.p2DriverName);
+            if (player === 1) { this.p1DriverName = newName; this.p1LblTxt.setText(newName); }
+            else               { this.p2DriverName = newName; this.p2LblTxt.setText(newName); }
+            if (inp.parentNode) inp.parentNode.removeChild(inp);
+        };
+
+        inp.addEventListener('blur',    done);
+        inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
+
+        this.events.once('shutdown', () => { if (inp.parentNode) inp.parentNode.removeChild(inp); });
     }
 }
 

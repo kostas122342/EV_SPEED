@@ -55,6 +55,8 @@ export class Game extends Scene {
         this.load.image('truck',      'assets/Truck.png');
         this.load.image('energyLogo', 'assets/En4.png');
         this.load.image('energyCoin', 'assets/Energy.png');
+        this.load.image('bombItem',   'assets/bomb.png');
+        this.load.image('clearItem',  'assets/CLEAR.png');
         this.load.image('tree',       'assets/tree.png');
         this.load.audio('energyBeat', 'assets/energyBeat.mp3');
         this.load.audio('bombBeat',   'assets/bombBeat.mp3');
@@ -154,6 +156,7 @@ export class Game extends Scene {
             fontFamily: 'Arial', fontSize: 18, color: '#ffff00',
             stroke: '#000000', strokeThickness: 3
         }).setOrigin(0, 0).setDepth(9);
+
 
         this.keys = this.input.keyboard.createCursorKeys();
 
@@ -261,12 +264,18 @@ export class Game extends Scene {
                 const busy = new Set([
                     ...this.enemies.filter(e => e.z > 900).map(e => e.lane),
                     ...this.obstacles.filter(o => o.z > 900).map(o => o.lane),
+                    ...this.energies.filter(ec => !ec.collected && ec.z > 900).map(ec => ec.lane),
+                    ...this.powerupItems.filter(p => !p.collected && p.z > 900).map(p => p.lane),
                 ]);
                 const free = [0, 1, 2].filter(l => !busy.has(l));
                 if (free.length === 0) return;
                 const lane = free[Math.floor(Math.random() * free.length)];
                 const type = Math.random() < 0.78 ? 'clearLane' : 'megaBomb';
-                this.powerupItems.push({ z: Z_FAR, lane, type, collected: false });
+                const item = { z: Z_FAR, lane, type, collected: false };
+                const imgKey = type === 'megaBomb' ? 'bombItem' : 'clearItem';
+                item.sprite = this.add.image(0, 0, imgKey)
+                    .setOrigin(0.5, 0.5).setDepth(2.8).setVisible(false);
+                this.powerupItems.push(item);
             }
         }});
 
@@ -292,8 +301,8 @@ export class Game extends Scene {
         // Power-up buttons (bottom-left)
         this.puClrGfx = this.add.graphics().setDepth(9);
         this.puBmbGfx = this.add.graphics().setDepth(9);
-        this.puClrIcon = this.add.text(45,  H - 57, '⚡', { fontSize: 20 }).setOrigin(0.5).setDepth(10);
-        this.puBmbIcon = this.add.text(105, H - 57, '💣', { fontSize: 20 }).setOrigin(0.5).setDepth(10);
+        this.puClrIcon = this.add.image(45,  H - 57, 'clearItem').setScale(0.09).setOrigin(0.5).setDepth(10);
+        this.puBmbIcon = this.add.image(105, H - 54, 'bombItem' ).setScale(0.12).setOrigin(0.5).setDepth(10);
         this.puClrLbl  = this.add.text(45,  H - 24, 'CLR',  { fontFamily: 'Arial Black', fontSize: 12, color: '#00eeff', stroke: '#000000', strokeThickness: 3 }).setOrigin(0.5).setDepth(10);
         this.puBmbLbl  = this.add.text(105, H - 24, 'BOMB', { fontFamily: 'Arial Black', fontSize: 12, color: '#ffaa44', stroke: '#000000', strokeThickness: 3 }).setOrigin(0.5).setDepth(10);
         this.puClrCnt  = this.add.text(66,  H - 72, '',     { fontFamily: 'Arial Black', fontSize: 12, color: '#00ffff', stroke: '#000000', strokeThickness: 2 }).setOrigin(0.5).setDepth(10);
@@ -516,9 +525,14 @@ export class Game extends Scene {
         for (let i = this.powerupItems.length - 1; i >= 0; i--) {
             const pu = this.powerupItems[i];
             pu.z -= this.spd * dt;
-            if (pu.z < Z_NEAR - 150) { this.powerupItems.splice(i, 1); continue; }
+            if (pu.z < Z_NEAR - 150) {
+                if (pu.sprite) pu.sprite.destroy();
+                this.powerupItems.splice(i, 1);
+                continue;
+            }
             if (!pu.collected && pu.z < Z_NEAR + 130 && pu.lane === this.lane) {
                 pu.collected = true;
+                if (pu.sprite) pu.sprite.setVisible(false);
                 this.powerups[pu.type]++;
                 this.updatePowerupBtns();
                 const sp = proj(LANE_CENTERS[pu.lane], Math.max(pu.z, 1));
@@ -815,16 +829,18 @@ export class Game extends Scene {
             if (p.y < HORIZON_Y || p.y > H + 80) continue;
             const fa = smoothstep((p.y - HORIZON_Y - FOG_DENSE) / (FOG_H - FOG_DENSE));
             const r = Math.max(7, 28 * p.s);
-            if (pu.type === 'clearLane') {
-                this.gCar.fillStyle(0x0055bb, fa * 0.9);
-                this.gCar.fillCircle(p.x, p.y, r);
-                this.gCar.fillStyle(0x00ddff, fa);
-                this.gCar.fillCircle(p.x, p.y, r * 0.6);
-            } else {
-                this.gCar.fillStyle(0xaa2200, fa * 0.9);
-                this.gCar.fillCircle(p.x, p.y, r);
-                this.gCar.fillStyle(0xff7700, fa);
-                this.gCar.fillCircle(p.x, p.y, r * 0.6);
+            if (pu.sprite) {
+                const t     = this.time.now / 1000;
+                const pulse = 1 + 0.18 * Math.sin(t * 5);
+                if (pu.type === 'megaBomb') {
+                    const sc = Math.max(0.12, 0.42 * p.s) * pulse;
+                    pu.sprite.setVisible(true).setPosition(p.x, p.y).setScale(sc)
+                        .setAlpha(fa).setAngle(Math.sin(t * 3) * 14);
+                } else {
+                    const sc = Math.max(0.10, 0.34 * p.s) * pulse;
+                    pu.sprite.setVisible(true).setPosition(p.x, p.y).setScale(sc)
+                        .setAlpha(fa).setAngle(0);
+                }
             }
         }
 
