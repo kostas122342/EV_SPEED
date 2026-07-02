@@ -6,7 +6,7 @@ export class Menu extends Scene {
     constructor() { super('Menu'); }
 
     preload() {
-        this.load.image('menuBg',   'assets/EVSPEED.png');
+        this.load.image('menuBg',   'assets/EVSPEED2.png');
         this.load.image('playerCar', 'assets/CarFinal.png');
         this.load.image('energyLogo', 'assets/En4.png');
         this.load.audio('bgMusic',  'assets/EvSong.mp3');

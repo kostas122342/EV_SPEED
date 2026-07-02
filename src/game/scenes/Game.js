@@ -44,12 +44,15 @@ export class Game extends Scene {
         this.load.image('city',        'assets/City.png');
         this.load.image('athens',      'assets/Athens.png');
         this.load.image('playerCar',  'assets/CarFinal.png');
-        this.load.image('car2',       'assets/car2.png');
         this.load.image('P1',         'assets/P1.png');
         this.load.image('evS',        'assets/evS.png');
+        this.load.image('evS_white',  'assets/EVSWHITE.png');
         this.load.image('evX',        'assets/evX.png');
-        this.load.image('modelY',     'assets/modelY.png');
+        this.load.image('evX_white',  'assets/EVXWHITE.png');
+        this.load.image('modelY',       'assets/modelY.png');
+        this.load.image('modelY_white', 'assets/EVYWHITE.png');
         this.load.image('cbt',        'assets/CBT.png');
+        this.load.image('cbt_white',  'assets/CBTWHITE.png');
         this.load.image('scooter',    'assets/SCOOTER.png');
         this.load.image('obstacle',   'assets/obstacle.png');
         this.load.image('truck',      'assets/Truck.png');
@@ -121,14 +124,19 @@ export class Game extends Scene {
         this.gCar   = this.add.graphics().setDepth(3);
 
         this.carRot = 0;
+        const WHITE_KEYS = { modelY: 'modelY_white', evS: 'evS_white', evX: 'evX_white', cbt: 'cbt_white' };
         const mpCarKey = this.mp ? (this.mpPlayer === 1 ? mpData.p1Car : mpData.p2Car) : (mpData.carKey || null);
         const selectedCar = mpCarKey || localStorage.getItem('evspeed_selected_car') || 'playerCar';
         this.selectedCar = selectedCar;
-        const CAR_SCALES = { playerCar: 0.32, car2: 0.27, evS: 0.17, evX: 0.114, modelY: 0.1365, cbt: 0.16, scooter: 0.11 };
-        this.playerSprite = this.add.image(this.px, H - 140, selectedCar)
+        const CAR_SCALES = { playerCar: 0.32, evS: 0.17, evX: 0.114, modelY: 0.1365, cbt: 0.16, scooter: 0.11 };
+        const storedTint = localStorage.getItem(`evspeed_tint_${selectedCar}`);
+        const hasValidTint = storedTint && storedTint !== '#ffffff';
+        const carTextureKey = (hasValidTint && WHITE_KEYS[selectedCar]) ? WHITE_KEYS[selectedCar] : selectedCar;
+        this.playerSprite = this.add.image(this.px, H - 140, carTextureKey)
             .setScale(CAR_SCALES[selectedCar] ?? 0.32)
             .setOrigin(0.5, 0.76)
             .setDepth(3.5);
+        if (hasValidTint) this.playerSprite.setTint(parseInt(storedTint.replace('#', ''), 16));
 
         const uiBg = this.add.graphics().setDepth(8);
         uiBg.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.52, 0, 0.52);
@@ -357,9 +365,16 @@ export class Game extends Scene {
     }
 
     go(d) {
-        if (this.moving || this.over || !this.started) return;
+        if (this.over || !this.started) return;
         const nl = this.lane + d;
-        if (nl < 0 || nl > 2) return;
+        if (nl < 0 || nl > 2 || nl === this.lane) return;
+
+        const now = this.time.now;
+        if (now - (this.laneChangedAt || 0) < 60) return;
+        this.laneChangedAt = now;
+
+        if (this.laneTween) { this.laneTween.stop(); this.laneTween = null; }
+
         this.moving = true;
         this.lane = nl;
         this.moveDir = d;
@@ -367,7 +382,7 @@ export class Game extends Scene {
         if (this.selectedCar === 'scooter') {
             const leanAngle   = d * 0.28;
             const settleAngle = [0.26, 0, -0.26][nl];
-            this.tweens.add({
+            this.laneTween = this.tweens.add({
                 targets: this,
                 px: laneX(nl),
                 carRot: leanAngle,
@@ -375,6 +390,7 @@ export class Game extends Scene {
                 ease: 'Sine.easeOut',
                 onComplete: () => {
                     this.moving = false;
+                    this.laneTween = null;
                     this.tweens.add({
                         targets: this,
                         carRot: settleAngle,
@@ -385,16 +401,18 @@ export class Game extends Scene {
             });
         } else {
             const laneRot = [0.26, 0, -0.26];
-            this.tweens.add({
+            this.laneTween = this.tweens.add({
                 targets: this,
                 px: laneX(nl),
                 carRot: laneRot[nl],
                 duration: 140,
                 ease: 'Cubic.easeOut',
-                onComplete: () => { this.moving = false; }
+                onComplete: () => {
+                    this.moving = false;
+                    this.laneTween = null;
+                }
             });
         }
-
     }
 
     update(time, delta) {

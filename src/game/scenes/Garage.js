@@ -3,12 +3,11 @@ import { Scene } from 'phaser';
 const W = 480, H = 720;
 
 const CARS = [
-    { key: 'playerCar', asset: 'assets/CarFinal.png', name: 'EV 3 - WHITE', unlockKey: null,            scale: 0.23, offY: -80, offX: 0  },
-    { key: 'car2',      asset: 'assets/car2.png',     name: 'EV 3 - RED',   unlockKey: 'evspeed_car2',  scale: 0.20, offY: -70, offX: 4  },
-    { key: 'modelY',    asset: 'assets/modelY.png',   name: 'EV Y',         unlockKey: 'evspeed_carY',  scale: 0.10, offY: -12, offX: 0  },
-    { key: 'evS',       asset: 'assets/evS.png',      name: 'EV S',         unlockKey: 'evspeed_evS',   scale: 0.14, offY: -40, offX: 0  },
-    { key: 'evX',       asset: 'assets/evX.png',      name: 'EV X',         unlockKey: 'evspeed_evX',   scale: 0.10, offY: -40, offX: 0  },
-    { key: 'cbt',       asset: 'assets/CBT.png',      name: 'CBT',          unlockKey: 'evspeed_cbt',      scale: 0.12, offY: -40, offX: 0  },
+    { key: 'playerCar', asset: 'assets/CarFinal.png', name: 'EV 3',         unlockKey: null,            scale: 0.23, offY: -80, offX: 0  },
+    { key: 'modelY',    asset: 'assets/modelY.png',   name: 'EV Y',         unlockKey: 'evspeed_carY',  scale: 0.10, offY: -12, offX: 0, whiteKey: 'modelY_white'  },
+    { key: 'evS',       asset: 'assets/evS.png',      name: 'EV S',         unlockKey: 'evspeed_evS',   scale: 0.14, offY: -40, offX: 0, whiteKey: 'evS_white'  },
+    { key: 'evX',       asset: 'assets/evX.png',      name: 'EV X',         unlockKey: 'evspeed_evX',   scale: 0.10, offY: -40, offX: 0, whiteKey: 'evX_white'  },
+    { key: 'cbt',       asset: 'assets/CBT.png',      name: 'CBT',          unlockKey: 'evspeed_cbt',      scale: 0.12, offY: -40, offX: 0, whiteKey: 'cbt_white'  },
     { key: 'scooter',   asset: 'assets/SCOOTER.png',  name: 'SCOOTER',      unlockKey: 'evspeed_scooter',  scale: 0.15, offY: -40, offX: 0  },
 ];
 
@@ -31,13 +30,16 @@ export class Garage extends Scene {
 
     preload() {
         this.load.image('playerCar', 'assets/CarFinal.png');
-        this.load.image('car2',      'assets/car2.png');
         this.load.image('evS',       'assets/evS.png');
+        this.load.image('evS_white', 'assets/EVSWHITE.png');
         this.load.image('evX',       'assets/evX.png');
-        this.load.image('modelY',    'assets/modelY.png');
+        this.load.image('evX_white', 'assets/EVXWHITE.png');
+        this.load.image('modelY',       'assets/modelY.png');
+        this.load.image('modelY_white', 'assets/EVYWHITE.png');
         this.load.image('cbt',       'assets/CBT.png');
+        this.load.image('cbt_white', 'assets/CBTWHITE.png');
         this.load.image('scooter',   'assets/SCOOTER.png');
-        this.load.image('menuBg',    'assets/EVSPEED.png');
+        this.load.image('menuBg',    'assets/EVSPEED2.png');
     }
 
     create() {
@@ -68,9 +70,13 @@ export class Garage extends Scene {
             card.strokeRoundedRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H, 12);
             this.cont.add(card);
 
-            const carImg = this.add.image(cx + car.offX, cy + car.offY, car.key)
+            const storedTint = unlocked ? localStorage.getItem(`evspeed_tint_${car.key}`) : null;
+            const hasValidTint = storedTint && storedTint !== '#ffffff';
+            const textureKey = (hasValidTint && car.whiteKey) ? car.whiteKey : car.key;
+            const carImg = this.add.image(cx + car.offX, cy + car.offY, textureKey)
                 .setScale(car.scale).setOrigin(0.5);
             if (!unlocked) carImg.setTint(0x111111);
+            else if (hasValidTint) carImg.setTint(parseInt(storedTint.replace('#', ''), 16));
             this.cont.add(carImg);
 
             if (!unlocked) {

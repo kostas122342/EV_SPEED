@@ -19,12 +19,11 @@ const DRIVER_NAMES = [
 ];
 
 const ALL_CARS = [
-    { key: 'playerCar', name: 'EV 3 - WHITE', unlockKey: null,           scale: 0.23, offY: -80, offX: 0 },
-    { key: 'car2',      name: 'EV 3 - RED',   unlockKey: 'evspeed_car2', scale: 0.20, offY: -70, offX: 4 },
-    { key: 'modelY',    name: 'EV Y',          unlockKey: 'evspeed_carY', scale: 0.10, offY: -12, offX: 0 },
-    { key: 'evS',       name: 'EV S',          unlockKey: 'evspeed_evS',  scale: 0.14, offY: -18, offX: 0 },
-    { key: 'evX',       name: 'EV X',          unlockKey: 'evspeed_evX',  scale: 0.10, offY: -18, offX: 0 },
-    { key: 'cbt',       name: 'CBT',           unlockKey: 'evspeed_cbt',     scale: 0.12, offY: -18, offX: 0 },
+    { key: 'playerCar', name: 'EV 3',          unlockKey: null,           scale: 0.23, offY: -80, offX: 0 },
+    { key: 'modelY',    name: 'EV Y',          unlockKey: 'evspeed_carY', scale: 0.10, offY: -12, offX: 0, whiteKey: 'modelY_white' },
+    { key: 'evS',       name: 'EV S',          unlockKey: 'evspeed_evS',  scale: 0.14, offY: -18, offX: 0, whiteKey: 'evS_white' },
+    { key: 'evX',       name: 'EV X',          unlockKey: 'evspeed_evX',  scale: 0.10, offY: -18, offX: 0, whiteKey: 'evX_white' },
+    { key: 'cbt',       name: 'CBT',           unlockKey: 'evspeed_cbt',     scale: 0.12, offY: -18, offX: 0, whiteKey: 'cbt_white' },
     { key: 'scooter',   name: 'SCOOTER',       unlockKey: 'evspeed_scooter', scale: 0.10, offY: -15, offX: 0 },
 ];
 
@@ -33,13 +32,16 @@ export class MPCarSelect extends Scene {
 
     preload() {
         this.load.image('playerCar', 'assets/CarFinal.png');
-        this.load.image('car2',      'assets/car2.png');
         this.load.image('evS',       'assets/evS.png');
+        this.load.image('evS_white', 'assets/EVSWHITE.png');
         this.load.image('evX',       'assets/evX.png');
-        this.load.image('modelY',    'assets/modelY.png');
+        this.load.image('evX_white', 'assets/EVXWHITE.png');
+        this.load.image('modelY',       'assets/modelY.png');
+        this.load.image('modelY_white', 'assets/EVYWHITE.png');
         this.load.image('cbt',       'assets/CBT.png');
+        this.load.image('cbt_white', 'assets/CBTWHITE.png');
         this.load.image('scooter',   'assets/SCOOTER.png');
-        this.load.image('menuBg',    'assets/EVSPEED.png');
+        this.load.image('menuBg',    'assets/EVSPEED2.png');
     }
 
     create() {
@@ -83,6 +85,7 @@ export class MPCarSelect extends Scene {
             const c1 = this.cars[this.p1Idx];
             this.p1Img = this.add.image(cx + c1.offX, CAR_Y + c1.offY, c1.key)
                 .setScale(c1.scale).setOrigin(0.5).setDepth(4);
+            this.applyTint(this.p1Img, c1.key);
 
             const sepY = CAR_Y + CARD_H / 2 - 68;
             const sg = this.add.graphics().setDepth(3);
@@ -136,8 +139,10 @@ export class MPCarSelect extends Scene {
             const c1 = this.cars[this.p1Idx], c2 = this.cars[this.p2Idx];
             this.p1Img = this.add.image(CX1 + c1.offX, CAR_Y + c1.offY, c1.key)
                 .setScale(c1.scale).setOrigin(0.5).setDepth(4);
+            this.applyTint(this.p1Img, c1.key);
             this.p2Img = this.add.image(CX2 + c2.offX, CAR_Y + c2.offY, c2.key)
                 .setScale(c2.scale).setOrigin(0.5).setDepth(4);
+            this.applyTint(this.p2Img, c2.key);
 
             const sepY = CAR_Y + CARD_H / 2 - 68;
             [CX1, CX2].forEach(cx => {
@@ -274,14 +279,29 @@ export class MPCarSelect extends Scene {
             const c = this.cars[this.p1Idx];
             const cx = this.isSingle ? W / 2 : CX1;
             this.p1Img.setTexture(c.key).setScale(c.scale).setPosition(cx + c.offX, CAR_Y + c.offY);
+            this.applyTint(this.p1Img, c.key);
             this.p1Name.setText(c.name);
             this.drawDots(this.p1Dots, cx, dotY, this.p1Idx);
         } else {
             this.p2Idx = (this.p2Idx + dir + this.cars.length) % this.cars.length;
             const c = this.cars[this.p2Idx];
             this.p2Img.setTexture(c.key).setScale(c.scale).setPosition(CX2 + c.offX, CAR_Y + c.offY);
+            this.applyTint(this.p2Img, c.key);
             this.p2Name.setText(c.name);
             this.drawDots(this.p2Dots, CX2, dotY, this.p2Idx);
+        }
+    }
+
+    applyTint(img, carKey) {
+        const t = localStorage.getItem(`evspeed_tint_${carKey}`);
+        const hasValidTint = t && t !== '#ffffff';
+        const car = ALL_CARS.find(c => c.key === carKey);
+        if (hasValidTint) {
+            if (car && car.whiteKey) img.setTexture(car.whiteKey);
+            img.setTint(parseInt(t.replace('#', ''), 16));
+        } else {
+            img.setTexture(carKey);
+            img.clearTint();
         }
     }
 

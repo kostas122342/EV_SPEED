@@ -11,7 +11,7 @@ export class Settings extends Scene {
     constructor() { super('Settings'); }
 
     preload() {
-        this.load.image('menuBg', 'assets/EVSPEED.png');
+        this.load.image('menuBg', 'assets/EVSPEED2.png');
     }
 
     create() {

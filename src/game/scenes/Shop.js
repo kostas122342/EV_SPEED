@@ -3,13 +3,12 @@ import { Scene } from 'phaser';
 const W = 480, H = 720;
 
 const SHOP_CARS = [
-    { key: 'playerCar', name: 'EV 3 - WHITE', unlockKey: null,           price: 0,    scale: 0.23, offY: -92, offX: 0 },
-    { key: 'car2',      name: 'EV 3 - RED',   unlockKey: 'evspeed_car2', price: 200,  scale: 0.20, offY: -82, offX: 4 },
-    { key: 'modelY',    name: 'EV Y',          unlockKey: 'evspeed_carY', price: 600,  scale: 0.10, offY: -28, offX: 0 },
-    { key: 'evS',       name: 'EV S',          unlockKey: 'evspeed_evS',  price: 2000, scale: 0.14, offY: -40, offX: 0 },
-    { key: 'evX',       name: 'EV X',          unlockKey: 'evspeed_evX',  price: 3000, scale: 0.10, offY: -40, offX: 0 },
-    { key: 'cbt',       name: 'CBT',           unlockKey: 'evspeed_cbt',    price: 4000,  scale: 0.12, offY: -40, offX: 0 },
-    { key: 'scooter',   name: 'SCOOTER',       unlockKey: 'evspeed_scooter', price: 5000,  scale: 0.10, offY: -40, offX: 0 },
+    { key: 'playerCar', name: 'EV 3',          unlockKey: null,           price: 0,    scale: 0.23, offY: -92, offX: 0 },
+    { key: 'modelY',    name: 'EV Y',          unlockKey: 'evspeed_carY', price: 600,  scale: 0.10, offY: -28, offX: 0, whiteKey: 'modelY_white' },
+    { key: 'evS',       name: 'EV S',          unlockKey: 'evspeed_evS',  price: 2000, scale: 0.14, offY: -40, offX: 0, whiteKey: 'evS_white' },
+    { key: 'evX',       name: 'EV X',          unlockKey: 'evspeed_evX',  price: 3000, scale: 0.10, offY: -40, offX: 0, whiteKey: 'evX_white' },
+    { key: 'cbt',       name: 'CBT',           unlockKey: 'evspeed_cbt',    price: 4000,  scale: 0.12, offY: -40, offX: 0, whiteKey: 'cbt_white' },
+    { key: 'scooter',   name: 'SCOOTER',       unlockKey: 'evspeed_scooter', price: 5000,  scale: 0.10, offY: -40, offX: 0, noColor: true },
 ];
 
 const POSITIONS = [
@@ -31,14 +30,18 @@ export class Shop extends Scene {
 
     preload() {
         this.load.image('playerCar',  'assets/CarFinal.png');
-        this.load.image('car2',       'assets/car2.png');
         this.load.image('evS',        'assets/evS.png');
+        this.load.image('evS_white',  'assets/EVSWHITE.png');
         this.load.image('evX',        'assets/evX.png');
-        this.load.image('modelY',     'assets/modelY.png');
+        this.load.image('evX_white',  'assets/EVXWHITE.png');
+        this.load.image('modelY',       'assets/modelY.png');
+        this.load.image('modelY_white', 'assets/EVYWHITE.png');
         this.load.image('cbt',        'assets/CBT.png');
+        this.load.image('cbt_white',  'assets/CBTWHITE.png');
         this.load.image('scooter',    'assets/SCOOTER.png');
-        this.load.image('menuBg',     'assets/EVSPEED.png');
-        this.load.image('energyLogo', 'assets/En4.png');
+        this.load.image('menuBg',     'assets/EVSPEED2.png');
+        this.load.image('energyLogo', 'assets/En45.png');
+        this.load.image('color1',     'assets/color1.png');
     }
 
     create() {
@@ -83,16 +86,29 @@ export class Shop extends Scene {
             this.cont.add(card);
 
             // Car image
-            this.cont.add(
-                this.add.image(cx + car.offX, cy + car.offY, car.key)
-                    .setScale(car.scale).setOrigin(0.5)
-            );
+            const storedTint = localStorage.getItem(`evspeed_tint_${car.key}`);
+            const hasValidTint = storedTint && storedTint !== '#ffffff';
+            const textureKey = (hasValidTint && car.whiteKey) ? car.whiteKey : car.key;
+            const carImg = this.add.image(cx + car.offX, cy + car.offY, textureKey)
+                .setScale(car.scale).setOrigin(0.5);
+            if (hasValidTint) carImg.setTint(parseInt(storedTint.replace('#', ''), 16));
+            this.cont.add(carImg);
 
             // Car name
             this.cont.add(this.add.text(cx, cy + CARD_H / 2 - 102, car.name, {
                 fontFamily: 'Arial Black', fontSize: 13,
                 color: '#ffffff', stroke: '#000000', strokeThickness: 3
             }).setOrigin(0.5));
+
+            // Color swatch
+            if (!car.noColor) {
+                const colorImg = this.add.image(cx, cy + CARD_H / 2 - 78, 'color1')
+                    .setScale(0.02).setOrigin(0.5).setInteractive({ useHandCursor: true });
+                colorImg.on('pointerdown', () => {
+                    this.showColorPicker(car.key);
+                });
+                this.cont.add(colorImg);
+            }
 
             const bx0  = cx - 54;
             const by0  = cy + CARD_H / 2 - 56;
@@ -364,6 +380,152 @@ export class Shop extends Scene {
                 targets: [panel, txt], alpha: 0, duration: 380,
                 onComplete: () => { panel.destroy(); txt.destroy(); this._toast = null; }
             });
+        });
+    }
+
+    showColorPicker(carKey) {
+        const energy = parseInt(localStorage.getItem('evspeed_energy') || '0');
+        let hue = 200, sat = 80, bri = 90;
+
+        const hsbToHex = (h, s, b) => {
+            s /= 100; b /= 100;
+            const k = n => (n + h / 60) % 6;
+            const f = n => b * (1 - s * Math.max(0, Math.min(k(n), 4 - k(n), 1)));
+            return '#' + [f(5), f(3), f(1)].map(x => Math.round(x * 255).toString(16).padStart(2, '0')).join('');
+        };
+
+        const hexToPhaser = hex => parseInt(hex.replace('#', ''), 16);
+
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.78);z-index:9999;display:flex;align-items:center;justify-content:center;';
+
+        overlay.innerHTML = `
+        <div style="background:#111122;border:2px solid #00cfff;border-radius:14px;padding:18px;width:270px;font-family:Arial Black,sans-serif;box-sizing:border-box;">
+            <div style="color:#00cfff;font-size:14px;margin-bottom:12px;text-align:center;">SELECT COLOR</div>
+            <div style="display:flex;gap:8px;align-items:flex-start;">
+                <canvas id="cp_sb" width="210" height="180" style="border-radius:6px;cursor:crosshair;flex-shrink:0;"></canvas>
+                <canvas id="cp_hue" width="22" height="180" style="border-radius:4px;cursor:ns-resize;flex-shrink:0;"></canvas>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:12px;">
+                <div id="cp_preview" style="width:42px;height:42px;border-radius:6px;border:2px solid #334466;background:#1d1d1d;flex-shrink:0;"></div>
+                <div style="flex:1;">
+                    <div style="color:#667788;font-size:9px;margin-bottom:3px;">HEX</div>
+                    <div id="cp_hex" style="color:#ffffff;font-size:13px;background:#0a0a1a;border:1px solid #334466;border-radius:5px;padding:4px 8px;letter-spacing:1px;">#1D1D1D</div>
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:14px;">
+                <button id="cp_cancel" style="flex:1;background:#330000;border:none;border-radius:8px;color:#ff6666;font-family:Arial Black,sans-serif;font-size:12px;padding:10px;cursor:pointer;">CANCEL</button>
+                <button id="cp_apply" style="flex:2;background:#003322;border:none;border-radius:8px;color:#00ffcc;font-family:Arial Black,sans-serif;font-size:13px;padding:8px 10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;">APPLY <span style="color:#00cfff;font-size:14px;">400</span><img src="assets/En45.png" style="height:34px;width:auto;margin-left:-6px;"></button>
+            </div>
+            <div style="margin-top:8px;">
+                <button id="cp_reset" style="width:100%;background:#1a1a2e;border:1px solid #334466;border-radius:8px;color:#778899;font-family:Arial Black,sans-serif;font-size:11px;padding:8px;cursor:pointer;">↺  KEEP ORIGINAL</button>
+            </div>
+        </div>`;
+
+        document.body.appendChild(overlay);
+
+        const sbCanvas  = overlay.querySelector('#cp_sb');
+        const hueCanvas = overlay.querySelector('#cp_hue');
+        const preview   = overlay.querySelector('#cp_preview');
+        const hexDisp   = overlay.querySelector('#cp_hex');
+        const applyBtn  = overlay.querySelector('#cp_apply');
+        const cancelBtn = overlay.querySelector('#cp_cancel');
+
+        const drawSB = () => {
+            const ctx = sbCanvas.getContext('2d');
+            const gH = ctx.createLinearGradient(0, 0, 210, 0);
+            gH.addColorStop(0, `hsl(${hue},0%,100%)`);
+            gH.addColorStop(1, `hsl(${hue},100%,50%)`);
+            ctx.fillStyle = gH; ctx.fillRect(0, 0, 210, 180);
+            const gV = ctx.createLinearGradient(0, 0, 0, 180);
+            gV.addColorStop(0, 'rgba(0,0,0,0)');
+            gV.addColorStop(1, 'rgba(0,0,0,1)');
+            ctx.fillStyle = gV; ctx.fillRect(0, 0, 210, 180);
+            const cx = sat / 100 * 210, cy = (1 - bri / 100) * 180;
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2); ctx.stroke();
+        };
+
+        const drawHue = () => {
+            const ctx = hueCanvas.getContext('2d');
+            const g = ctx.createLinearGradient(0, 0, 0, 180);
+            for (let i = 0; i <= 12; i++) g.addColorStop(i / 12, `hsl(${i * 30},100%,50%)`);
+            ctx.fillStyle = g; ctx.fillRect(0, 0, 22, 180);
+            const y = hue / 360 * 180;
+            ctx.fillStyle = '#fff'; ctx.fillRect(0, Math.max(0, y - 2), 22, 4);
+        };
+
+        const updatePreview = () => {
+            const hex = hsbToHex(hue, sat, bri);
+            preview.style.background = hex;
+            hexDisp.textContent = hex.toUpperCase();
+        };
+
+        drawSB(); drawHue(); updatePreview();
+
+        const getPos = (e, el) => {
+            const r = el.getBoundingClientRect();
+            const t = e.touches ? e.touches[0] : e;
+            return { x: t.clientX - r.left, y: t.clientY - r.top };
+        };
+
+        let draggingSB = false, draggingHue = false;
+
+        const onSBMove = (e) => {
+            if (!draggingSB) return;
+            e.preventDefault();
+            const { x, y } = getPos(e, sbCanvas);
+            sat = Math.max(0, Math.min(100, x / 210 * 100));
+            bri = Math.max(0, Math.min(100, (1 - y / 180) * 100));
+            drawSB(); updatePreview();
+        };
+        const onHueMove = (e) => {
+            if (!draggingHue) return;
+            e.preventDefault();
+            const { y } = getPos(e, hueCanvas);
+            hue = Math.max(0, Math.min(360, y / 180 * 360));
+            drawSB(); drawHue(); updatePreview();
+        };
+
+        sbCanvas.addEventListener('mousedown',  (e) => { draggingSB = true;  onSBMove(e); });
+        sbCanvas.addEventListener('touchstart', (e) => { draggingSB = true;  onSBMove(e); }, { passive: false });
+        hueCanvas.addEventListener('mousedown',  (e) => { draggingHue = true; onHueMove(e); });
+        hueCanvas.addEventListener('touchstart', (e) => { draggingHue = true; onHueMove(e); }, { passive: false });
+
+        window.addEventListener('mousemove',  onSBMove);
+        window.addEventListener('mousemove',  onHueMove);
+        window.addEventListener('touchmove',  onSBMove,   { passive: false });
+        window.addEventListener('touchmove',  onHueMove,  { passive: false });
+        window.addEventListener('mouseup',  () => { draggingSB = false; draggingHue = false; });
+        window.addEventListener('touchend', () => { draggingSB = false; draggingHue = false; });
+
+        const close = () => {
+            document.body.removeChild(overlay);
+        };
+
+        cancelBtn.addEventListener('click', close);
+
+        overlay.querySelector('#cp_reset').addEventListener('click', () => {
+            localStorage.removeItem(`evspeed_tint_${carKey}`);
+            close();
+            this.scene.restart();
+        });
+
+        applyBtn.addEventListener('click', () => {
+            const currentEnergy = parseInt(localStorage.getItem('evspeed_energy') || '0');
+            if (currentEnergy < 400) {
+                applyBtn.textContent = 'NOT ENOUGH!';
+                applyBtn.style.background = '#550000';
+                setTimeout(() => {
+                    applyBtn.innerHTML = 'APPLY <span style="color:#00cfff;font-size:14px;">400</span><img src="assets/En45.png" style="height:34px;width:auto;margin-left:-6px;">';
+                    applyBtn.style.background = '#003322';
+                }, 1200);
+                return;
+            }
+            localStorage.setItem('evspeed_energy', currentEnergy - 400);
+            localStorage.setItem(`evspeed_tint_${carKey}`, hsbToHex(hue, sat, bri));
+            close();
+            this.scene.restart();
         });
     }
 }
