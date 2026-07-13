@@ -43,17 +43,23 @@ export class Game extends Scene {
     preload() {
         this.load.image('city',        'assets/City.png');
         this.load.image('athens',      'assets/Athens.png');
-        this.load.image('playerCar',  'assets/CarFinal.png');
-        this.load.image('P1',         'assets/P1.png');
-        this.load.image('evS',        'assets/evS.png');
-        this.load.image('evS_white',  'assets/EVSWHITE.png');
-        this.load.image('evX',        'assets/evX.png');
-        this.load.image('evX_white',  'assets/EVXWHITE.png');
-        this.load.image('modelY',       'assets/modelY.png');
-        this.load.image('modelY_white', 'assets/EVYWHITE.png');
-        this.load.image('cbt',        'assets/CBT.png');
-        this.load.image('cbt_white',  'assets/CBTWHITE.png');
-        this.load.image('scooter',    'assets/SCOOTER.png');
+        this.load.image('playerCar', 'assets/CarFinal.png');
+        this.load.image('ev3Blue',   'assets/ev3BLUE.png');
+        this.load.image('ev3Red',    'assets/ev3RED.png');
+        this.load.image('P1',        'assets/P1.png');
+        this.load.image('evS',       'assets/evS.png');
+        this.load.image('evsOrange', 'assets/evsORANGE.png');
+        this.load.image('evsGreen',  'assets/evsGREEN.png');
+        this.load.image('evX',       'assets/evX.png');
+        this.load.image('evxBlue',   'assets/evxBLUE.png');
+        this.load.image('evxRed',    'assets/evxRED.png');
+        this.load.image('modelY',    'assets/modelY.png');
+        this.load.image('evYWhite',  'assets/evYWHITE.png');
+        this.load.image('evYRed',    'assets/evYRED.png');
+        this.load.image('cbt',       'assets/CBT.png');
+        this.load.image('cbtWhite',  'assets/CBTWHITE.png');
+        this.load.image('cbtPurple', 'assets/cbtPURPLE.png');
+        this.load.image('scooter',   'assets/SCOOTER.png');
         this.load.image('obstacle',   'assets/obstacle.png');
         this.load.image('truck',      'assets/Truck.png');
         this.load.image('energyLogo', 'assets/En4.png');
@@ -94,7 +100,10 @@ export class Game extends Scene {
         this.energy  = 0;
         this.over    = false;
         this.homeDown = false;
-        this.powerups     = { clearLane: 0, megaBomb: 0 };
+        this.powerups     = {
+            clearLane: parseInt(localStorage.getItem('evspeed_pu_clear') || '0'),
+            megaBomb:  parseInt(localStorage.getItem('evspeed_pu_bomb')  || '0'),
+        };
         this.powerupItems = [];
         this.puFlashT     = 0;
         this.puBombT      = 0;
@@ -124,19 +133,19 @@ export class Game extends Scene {
         this.gCar   = this.add.graphics().setDepth(3);
 
         this.carRot = 0;
-        const WHITE_KEYS = { modelY: 'modelY_white', evS: 'evS_white', evX: 'evX_white', cbt: 'cbt_white' };
         const mpCarKey = this.mp ? (this.mpPlayer === 1 ? mpData.p1Car : mpData.p2Car) : (mpData.carKey || null);
         const selectedCar = mpCarKey || localStorage.getItem('evspeed_selected_car') || 'playerCar';
         this.selectedCar = selectedCar;
-        const CAR_SCALES = { playerCar: 0.32, evS: 0.17, evX: 0.114, modelY: 0.1365, cbt: 0.16, scooter: 0.11 };
-        const storedTint = localStorage.getItem(`evspeed_tint_${selectedCar}`);
-        const hasValidTint = storedTint && storedTint !== '#ffffff';
-        const carTextureKey = (hasValidTint && WHITE_KEYS[selectedCar]) ? WHITE_KEYS[selectedCar] : selectedCar;
+        const CAR_SCALES = { playerCar: 0.32, evS: 0.17, evsOrange: 0.17, evsGreen: 0.17, evX: 0.114, evxBlue: 0.114, evxRed: 0.114, modelY: 0.1365, evYWhite: 0.1365, evYRed: 0.1365, cbt: 0.16, cbtWhite: 0.16, cbtPurple: 0.16, scooter: 0.11 };
+        const VARIANT_DEFAULTS = { playerCar: 'playerCar', modelY: 'evYWhite', evS: 'evS', evX: 'evX', cbt: 'cbtWhite' };
+        let carTextureKey = selectedCar;
+        if (VARIANT_DEFAULTS[selectedCar]) {
+            carTextureKey = localStorage.getItem(`evspeed_activeColor_${selectedCar}`) || VARIANT_DEFAULTS[selectedCar];
+        }
         this.playerSprite = this.add.image(this.px, H - 140, carTextureKey)
             .setScale(CAR_SCALES[selectedCar] ?? 0.32)
             .setOrigin(0.5, 0.76)
             .setDepth(3.5);
-        if (hasValidTint) this.playerSprite.setTint(parseInt(storedTint.replace('#', ''), 16));
 
         const uiBg = this.add.graphics().setDepth(8);
         uiBg.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.52, 0, 0.52);
@@ -168,13 +177,16 @@ export class Game extends Scene {
 
         this.keys = this.input.keyboard.createCursorKeys();
 
-        this.input.on('pointerdown', p => { this.sx = p.x; this.sy = p.y; });
-        this.input.on('pointerup', p => {
-            if (this.over) return;
+        this.input.on('pointerdown', p => { this.sx = p.x; this.sy = p.y; this.swiped = false; });
+        this.input.on('pointermove', p => {
+            if (!p.isDown || this.swiped || this.over) return;
             const dx = p.x - this.sx, dy = p.y - this.sy;
-            if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy))
+            if (Math.abs(dx) > 30 && Math.abs(dx) > Math.abs(dy)) {
+                this.swiped = true;
                 this.go(dx > 0 ? 1 : -1);
+            }
         });
+        this.input.on('pointerup', () => { this.swiped = false; });
 
         this.time.addEvent({ delay: 1600, loop: true, callback: () => {
             if (!this.over && this.started) {
@@ -951,6 +963,7 @@ export class Game extends Scene {
     activateClearLane() {
         if (this.powerups.clearLane <= 0 || this.over || !this.started) return;
         this.powerups.clearLane--;
+        localStorage.setItem('evspeed_pu_clear', this.powerups.clearLane);
         this.updatePowerupBtns();
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             if (this.enemies[i].lane === this.lane) {
@@ -971,6 +984,7 @@ export class Game extends Scene {
     activateMegaBomb() {
         if (this.powerups.megaBomb <= 0 || this.over || !this.started) return;
         this.powerups.megaBomb--;
+        localStorage.setItem('evspeed_pu_bomb', this.powerups.megaBomb);
         this.updatePowerupBtns();
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             this.showEnemyCrash(this.enemies[i].sprite, this.enemies[i].z, this.enemies[i].lane);

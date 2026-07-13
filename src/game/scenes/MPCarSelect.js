@@ -19,27 +19,85 @@ const DRIVER_NAMES = [
 ];
 
 const ALL_CARS = [
-    { key: 'playerCar', name: 'EV 3',          unlockKey: null,           scale: 0.23, offY: -80, offX: 0 },
-    { key: 'modelY',    name: 'EV Y',          unlockKey: 'evspeed_carY', scale: 0.10, offY: -12, offX: 0, whiteKey: 'modelY_white' },
-    { key: 'evS',       name: 'EV S',          unlockKey: 'evspeed_evS',  scale: 0.14, offY: -18, offX: 0, whiteKey: 'evS_white' },
-    { key: 'evX',       name: 'EV X',          unlockKey: 'evspeed_evX',  scale: 0.10, offY: -18, offX: 0, whiteKey: 'evX_white' },
-    { key: 'cbt',       name: 'CBT',           unlockKey: 'evspeed_cbt',     scale: 0.12, offY: -18, offX: 0, whiteKey: 'cbt_white' },
-    { key: 'scooter',   name: 'SCOOTER',       unlockKey: 'evspeed_scooter', scale: 0.10, offY: -15, offX: 0 },
+    { key: 'playerCar', name: 'EV 3',    unlockKey: null,              scale: 0.23, offY: -80, offX: 0 },
+    { key: 'modelY',    name: 'EV Y',    unlockKey: 'evspeed_carY',    scale: 0.10, offY: -12, offX: 0 },
+    { key: 'evS',       name: 'EV S',    unlockKey: 'evspeed_evS',     scale: 0.14, offY: -18, offX: 0 },
+    { key: 'evX',       name: 'EV X',    unlockKey: 'evspeed_evX',     scale: 0.10, offY: -18, offX: 0 },
+    { key: 'cbt',       name: 'CBT',     unlockKey: 'evspeed_cbt',     scale: 0.12, offY: -18, offX: 0 },
+    { key: 'scooter',   name: 'SCOOTER', unlockKey: 'evspeed_scooter', scale: 0.10, offY: -15, offX: 0 },
 ];
+
+// Per-car color variants with their unlock keys and swatch colors
+const CARS_WITH_COLORS = {
+    playerCar: [
+        { variantKey: 'playerCar', unlockKey: null,                     swatch: 0xd8d8d8 },
+        { variantKey: 'ev3Blue',   unlockKey: 'evspeed_color_ev3Blue',  swatch: 0x2255ee, scale: 0.205 },
+        { variantKey: 'ev3Red',    unlockKey: 'evspeed_color_ev3Red',   swatch: 0xdd2222, scale: 0.197 },
+    ],
+    modelY: [
+        { variantKey: 'evYWhite', unlockKey: 'evspeed_color_evYWhite', swatch: 0xffffff },
+        { variantKey: 'modelY',   unlockKey: 'evspeed_color_evYGrey',  swatch: 0x888888 },
+        { variantKey: 'evYRed',   unlockKey: 'evspeed_color_evYRed',   swatch: 0xdd2222 },
+    ],
+    evS: [
+        { variantKey: 'evS',       unlockKey: 'evspeed_color_evSBlue',   swatch: 0x2255ee },
+        { variantKey: 'evsOrange', unlockKey: 'evspeed_color_evsOrange', swatch: 0xff7700 },
+        { variantKey: 'evsGreen',  unlockKey: 'evspeed_color_evsGreen',  swatch: 0x22aa44 },
+    ],
+    evX: [
+        { variantKey: 'evX',     unlockKey: 'evspeed_color_evXBlack', swatch: 0x222222 },
+        { variantKey: 'evxBlue', unlockKey: 'evspeed_color_evXBlue',  swatch: 0x33aadd },
+        { variantKey: 'evxRed',  unlockKey: 'evspeed_color_evXRed',   swatch: 0xdd2222 },
+    ],
+    cbt: [
+        { variantKey: 'cbtWhite',  unlockKey: 'evspeed_color_cbtWhite',  swatch: 0xffffff },
+        { variantKey: 'cbt',       unlockKey: 'evspeed_color_cbtGrey',   swatch: 0x888888 },
+        { variantKey: 'cbtPurple', unlockKey: 'evspeed_color_cbtPurple', swatch: 0x8833cc },
+    ],
+};
+
+function buildCarsList() {
+    const result = [];
+    for (const carDef of ALL_CARS) {
+        const carOwned = !carDef.unlockKey || localStorage.getItem(carDef.unlockKey) === 'true';
+        if (!carOwned) continue;
+
+        const colorDefs = CARS_WITH_COLORS[carDef.key];
+        if (colorDefs) {
+            const owned = colorDefs.filter(c => !c.unlockKey || localStorage.getItem(c.unlockKey) === 'true');
+            const list = owned.length > 0 ? owned : [colorDefs[0]]; // fallback to first if none owned
+            list.forEach(c => result.push({
+                ...carDef,
+                variantKey: c.variantKey,
+                swatch:     c.swatch,
+                scale:      c.scale || carDef.scale,
+            }));
+        } else {
+            result.push({ ...carDef, variantKey: carDef.key, swatch: null });
+        }
+    }
+    return result;
+}
 
 export class MPCarSelect extends Scene {
     constructor() { super('MPCarSelect'); }
 
     preload() {
         this.load.image('playerCar', 'assets/CarFinal.png');
+        this.load.image('ev3Blue',   'assets/ev3BLUE.png');
+        this.load.image('ev3Red',    'assets/ev3RED.png');
         this.load.image('evS',       'assets/evS.png');
-        this.load.image('evS_white', 'assets/EVSWHITE.png');
+        this.load.image('evsOrange', 'assets/evsORANGE.png');
+        this.load.image('evsGreen',  'assets/evsGREEN.png');
         this.load.image('evX',       'assets/evX.png');
-        this.load.image('evX_white', 'assets/EVXWHITE.png');
-        this.load.image('modelY',       'assets/modelY.png');
-        this.load.image('modelY_white', 'assets/EVYWHITE.png');
+        this.load.image('evxBlue',   'assets/evxBLUE.png');
+        this.load.image('evxRed',    'assets/evxRED.png');
+        this.load.image('modelY',    'assets/modelY.png');
+        this.load.image('evYWhite',  'assets/evYWHITE.png');
+        this.load.image('evYRed',    'assets/evYRED.png');
         this.load.image('cbt',       'assets/CBT.png');
-        this.load.image('cbt_white', 'assets/CBTWHITE.png');
+        this.load.image('cbtWhite',  'assets/CBTWHITE.png');
+        this.load.image('cbtPurple', 'assets/cbtPURPLE.png');
         this.load.image('scooter',   'assets/SCOOTER.png');
         this.load.image('menuBg',    'assets/EVSPEED2.png');
     }
@@ -48,10 +106,17 @@ export class MPCarSelect extends Scene {
         const data = this.scene.settings.data || {};
         this.isSingle = data.mode === 'single';
 
-        this.cars  = ALL_CARS.filter(c => !c.unlockKey || localStorage.getItem(c.unlockKey) === 'true');
-        const lastCar = localStorage.getItem('evspeed_selected_car') || 'playerCar';
-        const lastIdx = this.cars.findIndex(c => c.key === lastCar);
-        this.p1Idx = this.isSingle ? (lastIdx >= 0 ? lastIdx : 0) : 0;
+        this.cars = buildCarsList();
+        if (this.cars.length === 0) this.cars = [{ key: 'playerCar', name: 'EV 3', unlockKey: null, scale: 0.23, offY: -80, offX: 0, variantKey: 'playerCar', swatch: 0xd8d8d8 }];
+
+        // Start at last used car+color combo
+        const lastCar   = localStorage.getItem('evspeed_selected_car') || 'playerCar';
+        const lastColor = localStorage.getItem(`evspeed_activeColor_${lastCar}`);
+        let lastIdx = lastColor ? this.cars.findIndex(c => c.key === lastCar && c.variantKey === lastColor) : -1;
+        if (lastIdx < 0) lastIdx = this.cars.findIndex(c => c.key === lastCar);
+        if (lastIdx < 0) lastIdx = 0;
+
+        this.p1Idx = this.isSingle ? lastIdx : 0;
         this.p2Idx = this.cars.length > 1 ? 1 : 0;
 
         const i1 = Math.floor(Math.random() * DRIVER_NAMES.length);
@@ -75,39 +140,41 @@ export class MPCarSelect extends Scene {
             stroke: '#0033aa', strokeThickness: 7
         }).setOrigin(0.5).setDepth(10);
 
+        const nameY  = CAR_Y + CARD_H / 2 - 60;
+        const swatchY = nameY + 17;
+        const dotY   = CAR_Y + CARD_H / 2 - 24;
+        const sepY   = CAR_Y + CARD_H / 2 - 76;
+
         if (this.isSingle) {
-            // ── SINGLE PLAYER: one centred card ──────────────────────
             const cx = W / 2;
 
             this.p1Card = this.add.graphics().setDepth(2);
             this.drawCard(this.p1Card, cx, 0x00cfff);
 
             const c1 = this.cars[this.p1Idx];
-            this.p1Img = this.add.image(cx + c1.offX, CAR_Y + c1.offY, c1.key)
+            this.p1Img = this.add.image(cx + c1.offX, CAR_Y + c1.offY, c1.variantKey)
                 .setScale(c1.scale).setOrigin(0.5).setDepth(4);
-            this.applyTint(this.p1Img, c1.key);
 
-            const sepY = CAR_Y + CARD_H / 2 - 68;
             const sg = this.add.graphics().setDepth(3);
             sg.lineStyle(1, 0x1e2e44, 1);
             sg.lineBetween(cx - CARD_W / 2 + 12, sepY, cx + CARD_W / 2 - 12, sepY);
 
-            const nameY = CAR_Y + CARD_H / 2 - 52;
             this.p1Name = this.add.text(cx, nameY, c1.name, {
                 fontFamily: 'Arial Black', fontSize: 13, color: '#ccd8ee',
                 stroke: '#000000', strokeThickness: 2
             }).setOrigin(0.5).setDepth(4);
 
-            const dotY = CAR_Y + CARD_H / 2 - 28;
+            this.p1Swatch = this.add.graphics().setDepth(4);
+            this.drawSwatch(this.p1Swatch, cx, swatchY, c1);
+
             this.p1Dots = this.add.graphics().setDepth(4);
             this.drawDots(this.p1Dots, cx, dotY, this.p1Idx);
 
             if (this.cars.length > 1) {
-                this.makeArrow(cx - 58, dotY, '◄', () => this.changeCar(1, -1));
-                this.makeArrow(cx + 58, dotY, '►', () => this.changeCar(1, +1));
+                this.makeArrow(cx - 68, dotY, '◄', () => this.changeCar(1, -1));
+                this.makeArrow(cx + 68, dotY, '►', () => this.changeCar(1, +1));
             }
         } else {
-            // ── MULTIPLAYER: two columns ──────────────────────────────
             const divGfx = this.add.graphics().setDepth(2);
             divGfx.lineStyle(3, 0xffffff, 0.5);
             divGfx.lineBetween(W / 2, 88, W / 2, H - 130);
@@ -121,12 +188,8 @@ export class MPCarSelect extends Scene {
                 stroke: '#000000', strokeThickness: 4
             }).setOrigin(0.5).setDepth(3).setInteractive({ useHandCursor: true });
 
-            this.add.text(CX1, 120, '✎ tap to edit', {
-                fontFamily: 'Arial', fontSize: 9, color: '#336688'
-            }).setOrigin(0.5).setDepth(3);
-            this.add.text(CX2, 120, '✎ tap to edit', {
-                fontFamily: 'Arial', fontSize: 9, color: '#664433'
-            }).setOrigin(0.5).setDepth(3);
+            this.add.text(CX1, 120, '✎ tap to edit', { fontFamily: 'Arial', fontSize: 9, color: '#336688' }).setOrigin(0.5).setDepth(3);
+            this.add.text(CX2, 120, '✎ tap to edit', { fontFamily: 'Arial', fontSize: 9, color: '#664433' }).setOrigin(0.5).setDepth(3);
 
             this.p1LblTxt.on('pointerdown', () => this.showNameInput(1));
             this.p2LblTxt.on('pointerdown', () => this.showNameInput(2));
@@ -137,21 +200,17 @@ export class MPCarSelect extends Scene {
             this.drawCard(this.p2Card, CX2, 0xff7744);
 
             const c1 = this.cars[this.p1Idx], c2 = this.cars[this.p2Idx];
-            this.p1Img = this.add.image(CX1 + c1.offX, CAR_Y + c1.offY, c1.key)
+            this.p1Img = this.add.image(CX1 + c1.offX, CAR_Y + c1.offY, c1.variantKey)
                 .setScale(c1.scale).setOrigin(0.5).setDepth(4);
-            this.applyTint(this.p1Img, c1.key);
-            this.p2Img = this.add.image(CX2 + c2.offX, CAR_Y + c2.offY, c2.key)
+            this.p2Img = this.add.image(CX2 + c2.offX, CAR_Y + c2.offY, c2.variantKey)
                 .setScale(c2.scale).setOrigin(0.5).setDepth(4);
-            this.applyTint(this.p2Img, c2.key);
 
-            const sepY = CAR_Y + CARD_H / 2 - 68;
             [CX1, CX2].forEach(cx => {
                 const sg = this.add.graphics().setDepth(3);
                 sg.lineStyle(1, 0x1e2e44, 1);
                 sg.lineBetween(cx - CARD_W / 2 + 12, sepY, cx + CARD_W / 2 - 12, sepY);
             });
 
-            const nameY = CAR_Y + CARD_H / 2 - 52;
             this.p1Name = this.add.text(CX1, nameY, c1.name, {
                 fontFamily: 'Arial Black', fontSize: 13, color: '#ccd8ee',
                 stroke: '#000000', strokeThickness: 2
@@ -161,7 +220,11 @@ export class MPCarSelect extends Scene {
                 stroke: '#000000', strokeThickness: 2
             }).setOrigin(0.5).setDepth(4);
 
-            const dotY = CAR_Y + CARD_H / 2 - 28;
+            this.p1Swatch = this.add.graphics().setDepth(4);
+            this.p2Swatch = this.add.graphics().setDepth(4);
+            this.drawSwatch(this.p1Swatch, CX1, swatchY, c1);
+            this.drawSwatch(this.p2Swatch, CX2, swatchY, c2);
+
             this.p1Dots = this.add.graphics().setDepth(4);
             this.p2Dots = this.add.graphics().setDepth(4);
             this.drawDots(this.p1Dots, CX1, dotY, this.p1Idx);
@@ -183,13 +246,15 @@ export class MPCarSelect extends Scene {
         // START button
         this.makeBtn(W / 2, H - 76, 220, 54, 'START',
             [0x005533, 0x007744, 0x22aa66], () => {
-                const p1Car = this.cars[this.p1Idx].key;
+                const p1 = this.cars[this.p1Idx];
+                localStorage.setItem('evspeed_selected_car', p1.key);
+                localStorage.setItem(`evspeed_activeColor_${p1.key}`, p1.variantKey);
                 if (this.isSingle) {
-                    localStorage.setItem('evspeed_selected_car', p1Car);
-                    this.scene.start('Game', { mp: false, carKey: p1Car });
+                    this.scene.start('Game', { mp: false, carKey: p1.key });
                 } else {
-                    const p2Car = this.cars[this.p2Idx].key;
-                    this.scene.start('Game', { mp: true, player: 1, p1Score: 0, p1Car, p2Car, p1Name: this.p1DriverName, p2Name: this.p2DriverName });
+                    const p2 = this.cars[this.p2Idx];
+                    localStorage.setItem(`evspeed_activeColor_${p2.key}`, p2.variantKey);
+                    this.scene.start('Game', { mp: true, player: 1, p1Score: 0, p1Car: p1.key, p2Car: p2.key, p1Name: this.p1DriverName, p2Name: this.p2DriverName });
                 }
             });
 
@@ -206,15 +271,22 @@ export class MPCarSelect extends Scene {
     drawCard(gfx, cx, borderCol) {
         const x = cx - CARD_W / 2, y = CAR_Y - CARD_H / 2;
         gfx.clear();
-        // Base
         gfx.fillStyle(0x06090f, 0.96);
         gfx.fillRoundedRect(x, y, CARD_W, CARD_H, 14);
-        // Subtle inner top highlight
         gfx.fillStyle(0xffffff, 0.03);
         gfx.fillRoundedRect(x + 2, y + 2, CARD_W - 4, 40, { tl: 12, tr: 12, bl: 0, br: 0 });
-        // Border
         gfx.lineStyle(1.5, borderCol, 0.7);
         gfx.strokeRoundedRect(x, y, CARD_W, CARD_H, 14);
+    }
+
+    drawSwatch(gfx, cx, y, car) {
+        gfx.clear();
+        if (car.swatch === null || car.swatch === undefined) return;
+        const sw = 13;
+        gfx.fillStyle(car.swatch, 1);
+        gfx.fillRoundedRect(cx - sw / 2, y - sw / 2, sw, sw, 3);
+        gfx.lineStyle(1.5, 0x445566, 1);
+        gfx.strokeRoundedRect(cx - sw / 2, y - sw / 2, sw, sw, 3);
     }
 
     drawDots(gfx, cx, y, activeIdx) {
@@ -273,35 +345,25 @@ export class MPCarSelect extends Scene {
     }
 
     changeCar(player, dir) {
-        const dotY = CAR_Y + CARD_H / 2 - 28;
+        const dotY    = CAR_Y + CARD_H / 2 - 24;
+        const nameY   = CAR_Y + CARD_H / 2 - 60;
+        const swatchY = nameY + 17;
+
         if (player === 1) {
             this.p1Idx = (this.p1Idx + dir + this.cars.length) % this.cars.length;
-            const c = this.cars[this.p1Idx];
+            const c  = this.cars[this.p1Idx];
             const cx = this.isSingle ? W / 2 : CX1;
-            this.p1Img.setTexture(c.key).setScale(c.scale).setPosition(cx + c.offX, CAR_Y + c.offY);
-            this.applyTint(this.p1Img, c.key);
+            this.p1Img.setTexture(c.variantKey).setScale(c.scale).setPosition(cx + c.offX, CAR_Y + c.offY);
             this.p1Name.setText(c.name);
+            this.drawSwatch(this.p1Swatch, cx, swatchY, c);
             this.drawDots(this.p1Dots, cx, dotY, this.p1Idx);
         } else {
             this.p2Idx = (this.p2Idx + dir + this.cars.length) % this.cars.length;
             const c = this.cars[this.p2Idx];
-            this.p2Img.setTexture(c.key).setScale(c.scale).setPosition(CX2 + c.offX, CAR_Y + c.offY);
-            this.applyTint(this.p2Img, c.key);
+            this.p2Img.setTexture(c.variantKey).setScale(c.scale).setPosition(CX2 + c.offX, CAR_Y + c.offY);
             this.p2Name.setText(c.name);
+            this.drawSwatch(this.p2Swatch, CX2, swatchY, c);
             this.drawDots(this.p2Dots, CX2, dotY, this.p2Idx);
-        }
-    }
-
-    applyTint(img, carKey) {
-        const t = localStorage.getItem(`evspeed_tint_${carKey}`);
-        const hasValidTint = t && t !== '#ffffff';
-        const car = ALL_CARS.find(c => c.key === carKey);
-        if (hasValidTint) {
-            if (car && car.whiteKey) img.setTexture(car.whiteKey);
-            img.setTint(parseInt(t.replace('#', ''), 16));
-        } else {
-            img.setTexture(carKey);
-            img.clearTint();
         }
     }
 
