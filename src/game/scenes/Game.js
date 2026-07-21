@@ -10,10 +10,14 @@ const DASH_LEN = 80, DASH_GAP = 80, DASH_P = DASH_LEN + DASH_GAP;
 const SCAN = 3;
 
 
+function roadHillLift(wz) {
+    const t = smoothstep((wz - 520) / (Z_FAR - 520));
+    return 34 * t;
+}
 
 function proj(wx, wz) {
     const s = FOCAL / wz;
-    return { x: W / 2 + wx * s, y: HORIZON_Y + CAM_H * s, s };
+    return { x: W / 2 + wx * s, y: HORIZON_Y + CAM_H * s - roadHillLift(wz), s };
 }
 
 function laneX(lane) {
@@ -22,6 +26,7 @@ function laneX(lane) {
 
 function rnd(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
 function smoothstep(t) { const c = Math.min(1, Math.max(0, t)); return c * c * (3 - 2 * c); }
+function hash01(n) { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); }
 
 function lerpColor(a, b, t) {
     const ar = (a >> 16) & 0xff, ag = (a >> 8) & 0xff, ab = a & 0xff;
@@ -30,11 +35,11 @@ function lerpColor(a, b, t) {
 }
 
 const WEATHER_STATES = [
-    { sky: 0x87CEEB, fog: 0x87CEEB, grass: 0x4a8c3f, night: 0.0  },  // Day
-    { sky: 0x9aaabb, fog: 0xaabbc8, grass: 0x3d7a35, night: 0.1  },  // Overcast
-    { sky: 0xe06030, fog: 0xf08858, grass: 0x4a4e24, night: 0.35 },  // Sunset
-    { sky: 0x080820, fog: 0x101830, grass: 0x0e180e, night: 1.0  },  // Night
-    { sky: 0xbb5577, fog: 0xcc7799, grass: 0x3a3e28, night: 0.4  },  // Dawn
+    { sky: 0x87CEEB, grass: 0x4a8c3f, night: 0.0  },  // Day
+    { sky: 0x9aaabb, grass: 0x3d7a35, night: 0.1  },  // Overcast
+    { sky: 0xe06030, grass: 0x4a4e24, night: 0.35 },  // Sunset
+    { sky: 0x080820, grass: 0x0e180e, night: 1.0  },  // Night
+    { sky: 0xbb5577, grass: 0x3a3e28, night: 0.4  },  // Dawn
 ];
 
 export class Game extends Scene {
@@ -67,6 +72,8 @@ export class Game extends Scene {
         this.load.image('bombItem',   'assets/bomb.png');
         this.load.image('clearItem',  'assets/CLEAR.png');
         this.load.image('tree',       'assets/tree.png');
+        this.load.image('mountainLayer',   'assets/mountain-layer.png');
+        this.load.image('forestCityLayer', 'assets/forest-city-layer.png');
         this.load.audio('energyBeat', 'assets/energyBeat.mp3');
         this.load.audio('bombBeat',   'assets/bombBeat.mp3');
         this.load.audio('lazerBeat',   'assets/lazerBeat.mp3');
@@ -120,17 +127,24 @@ export class Game extends Scene {
         this.weatherNext = 1;
         this.weatherT = 1.0;
         this.wSky   = WEATHER_STATES[0].sky;
-        this.wFog   = WEATHER_STATES[0].fog;
         this.wGrass = WEATHER_STATES[0].grass;
         this.wNight = 0.0;
 
         this.gBg    = this.add.graphics().setDepth(0);
-
+        this.mountainLayer = this.add.image(W / 2, HORIZON_Y + 60, 'mountainLayer')
+            .setOrigin(0.5, 1)
+            .setDisplaySize(560, 265)
+            .setDepth(0.35);
+        this.forestCityLayer = this.add.image(W / 2, HORIZON_Y + 61, 'forestCityLayer')
+            .setOrigin(0.5, 1)
+            .setDisplaySize(560, 187)
+            .setDepth(0.5);
         this.gRoad  = this.add.graphics().setDepth(1);
-        this.gFog   = this.add.graphics().setDepth(1.5);
+        this.gFog   = this.add.graphics().setDepth(1.45);
         this.gCity  = this.add.graphics().setDepth(1.7);
         this.gEnv   = this.add.graphics().setDepth(2);
         this.gNight = this.add.graphics().setDepth(2.8);
+        this.gHorizonLights = this.add.graphics().setDepth(2.9);
         this.gCar   = this.add.graphics().setDepth(3);
 
         this.carRot = 0;
@@ -629,7 +643,6 @@ export class Game extends Scene {
             const from = WEATHER_STATES[this.weatherIdx];
             const to   = WEATHER_STATES[this.weatherNext];
             this.wSky   = lerpColor(from.sky,   to.sky,   this.weatherT);
-            this.wFog   = lerpColor(from.fog,   to.fog,   this.weatherT);
             this.wGrass = lerpColor(from.grass, to.grass, this.weatherT);
             this.wNight = from.night + (to.night - from.night) * this.weatherT;
             if (this.weatherT >= 1.0) {
@@ -641,13 +654,139 @@ export class Game extends Scene {
         this.redraw();
     }
 
+    drawMountainRidge(g, baseY, topY, color, seed, alpha, valleyDepth = 0) {
+        const step = 30;
+        g.fillStyle(color, alpha);
+        g.beginPath();
+        g.moveTo(-step, baseY);
+        for (let x = -step; x <= W + step; x += step) {
+            const broadShape = Math.sin((x + seed * 23) * 0.018) * 14;
+            const crag = (hash01(seed * 101 + x) - 0.5) * 25;
+            const centreValley = Math.max(0, 1 - Math.abs(x - W / 2) / 125) * valleyDepth;
+            g.lineTo(x, topY + broadShape + crag + centreValley);
+        }
+        g.lineTo(W + step, baseY);
+        g.closePath();
+        g.fillPath();
+
+        // Sparse highlights suggest rock faces without outlining the whole ridge.
+        const highlight = lerpColor(color, 0xb9c8bd, 0.15);
+        g.fillStyle(highlight, alpha * 0.22);
+        for (let x = 5; x < W; x += 72) {
+            const peakY = topY + Math.sin((x + seed * 23) * 0.018) * 14 +
+                (hash01(seed * 101 + x) - 0.5) * 25 +
+                Math.max(0, 1 - Math.abs(x - W / 2) / 125) * valleyDepth;
+            g.fillTriangle(x, peakY + 3, x + 12, peakY + 24, x + 4, peakY + 18);
+        }
+    }
+
+    drawDetailedPine(g, x, baseY, h, baseCol, night, seed, alpha = 1) {
+        const trunkW = Math.max(1.2, h * 0.045);
+        const trunkCol = lerpColor(0x4b3422, 0x120b08, night);
+        const shadowCol = lerpColor(baseCol, 0x000000, 0.34);
+        const lightCol = lerpColor(baseCol, night > 0.45 ? 0x23384a : 0x8fbf72, 0.20);
+
+        g.fillStyle(trunkCol, alpha);
+        g.fillRect(x - trunkW / 2, baseY - h * 0.34, trunkW, h * 0.36);
+
+        // Overlapping, slightly irregular branch shelves read much more like a
+        // conifer than three perfectly even triangles.
+        for (let tier = 0; tier < 6; tier++) {
+            const jitter = (hash01(seed * 17 + tier * 7) - 0.5) * h * 0.018;
+            const topY = baseY - h + tier * h * 0.125;
+            const bottomY = topY + h * (0.24 + tier * 0.018);
+            const halfW = h * (0.095 + tier * 0.025) * (0.90 + hash01(seed + tier * 13) * 0.16);
+            const cx = x + jitter;
+
+            g.fillStyle(shadowCol, alpha);
+            g.fillTriangle(cx, topY, cx - halfW, bottomY, cx + halfW, bottomY);
+            g.fillStyle(lightCol, alpha * 0.78);
+            g.fillTriangle(cx - 0.5, topY + 1, cx - halfW, bottomY, cx - halfW * 0.04, bottomY);
+            g.fillStyle(baseCol, alpha * 0.92);
+            g.fillTriangle(cx, topY + 2, cx, bottomY, cx + halfW, bottomY);
+        }
+
+        // Fine crown and a few low branch tips break the geometric silhouette.
+        g.fillStyle(lightCol, alpha * 0.72);
+        g.fillTriangle(x, baseY - h * 1.04, x - h * 0.045, baseY - h * 0.82, x + h * 0.025, baseY - h * 0.82);
+        g.fillStyle(shadowCol, alpha * 0.8);
+        g.fillTriangle(x, baseY - h * 0.34, x - h * 0.18, baseY - h * 0.08, x + h * 0.18, baseY - h * 0.08);
+    }
+
+    drawPseudoBuilding(g, bx, by, bw, bh, night, seed) {
+        const side = 7 + hash01(seed + 5) * 4;
+        const frontTop = lerpColor(0x87939a, 0x1a2634, night);
+        const frontBottom = lerpColor(0x505d64, 0x0a111c, night);
+        const sideCol = lerpColor(0x38464d, 0x050a12, night);
+        const roofCol = lerpColor(0xaab4b8, 0x273546, night);
+
+        // Grounding shadow, shaded side plane and a shallow perspective roof.
+        g.fillStyle(0x07100c, 0.26);
+        g.fillEllipse(bx + bw * 0.55, by + 2, bw + side + 12, 8);
+        g.fillStyle(sideCol, 1);
+        g.fillTriangle(bx + bw, by - bh, bx + bw + side, by - bh - 6, bx + bw + side, by);
+        g.fillTriangle(bx + bw, by - bh, bx + bw + side, by, bx + bw, by);
+        g.fillGradientStyle(frontTop, frontTop, frontBottom, frontBottom, 1);
+        g.fillRect(bx, by - bh, bw, bh);
+        g.fillStyle(roofCol, 1);
+        g.fillTriangle(bx, by - bh, bx + side, by - bh - 6, bx + bw + side, by - bh - 6);
+        g.fillTriangle(bx, by - bh, bx + bw + side, by - bh - 6, bx + bw, by - bh);
+
+        // Recessed windows and occasional balcony/roof equipment add scale.
+        const windowGlow = night > 0.30 ? 0xffd58a : 0xb9d9dc;
+        const rows = Math.max(2, Math.floor((bh - 12) / 12));
+        for (let row = 0; row < rows; row++) {
+            const wy = by - bh + 10 + row * 12;
+            for (let wx = bx + 6; wx < bx + bw - 4; wx += 9) {
+                if (hash01(seed * 31 + wx + row * 9) > 0.24) {
+                    g.fillStyle(0x071018, 0.62);
+                    g.fillRect(wx - 1, wy - 1, 5, 7);
+                    g.fillStyle(windowGlow, 0.28 + night * 0.67);
+                    g.fillRect(wx, wy, 3, 5);
+                }
+            }
+        }
+        if (hash01(seed + 90) > 0.45) {
+            g.fillStyle(sideCol, 1);
+            g.fillRect(bx + bw * 0.46, by - bh - 11, 2, 6);
+            g.fillStyle(roofCol, 1);
+            g.fillRect(bx + bw * 0.36, by - bh - 6, bw * 0.22, 3);
+        }
+    }
+
+    drawBuildingNightLights(g, bx, by, bw, bh, night, seed) {
+        const intensity = smoothstep((night - 0.16) / 0.54);
+        if (intensity <= 0) return;
+
+        const rows = Math.max(2, Math.floor((bh - 12) / 12));
+        for (let row = 0; row < rows; row++) {
+            const wy = by - bh + 10 + row * 12;
+            for (let wx = bx + 6; wx < bx + bw - 4; wx += 9) {
+                if (hash01(seed * 31 + wx + row * 9) > 0.24) {
+                    // Soft halo is rendered above the global night tint, followed
+                    // by a warm, sharp window core.
+                    g.fillStyle(0xffc45e, intensity * 0.075);
+                    g.fillCircle(wx + 1.5, wy + 2.5, 5.5);
+                    g.fillStyle(0xffd98a, intensity * 0.88);
+                    g.fillRect(wx, wy, 3, 5);
+                    g.fillStyle(0xfff1bf, intensity * 0.65);
+                    g.fillRect(wx, wy, 1, 4);
+                }
+            }
+        }
+    }
+
     redraw() {
+        // Objects emerge from fog: invisible inside fog, fully visible by y=260
+        const fogFade = (py) => smoothstep((py - HORIZON_Y - 30) / 50);
+
         this.gBg.clear();
         this.gRoad.clear();
         this.gFog.clear();
         this.gCity.clear();
         this.gEnv.clear();
         this.gNight.clear();
+        this.gHorizonLights.clear();
         this.gCar.clear();
 
         // Sky
@@ -658,6 +797,46 @@ export class Game extends Scene {
         this.gBg.fillStyle(this.wGrass, 1);
         this.gBg.fillRect(0, HORIZON_Y, W, H - HORIZON_Y);
 
+        // Fog uses exact sky color so the top edge is seamless with the sky background.
+        // Sky-colored haze over the road gives realistic atmospheric perspective.
+        const fogColor = this.wSky;
+        this.gFog.fillGradientStyle(fogColor, fogColor, fogColor, fogColor, 0, 0, 0.92, 0.92);
+        this.gFog.fillRect(0, HORIZON_Y, W, 30);       // y=180→210: alpha 0→92%
+        this.gFog.fillGradientStyle(fogColor, fogColor, fogColor, fogColor, 0.92, 0.92, 0, 0);
+        this.gFog.fillRect(0, HORIZON_Y + 30, W, 35);  // y=210→245: alpha 92→0%
+
+        // Layered high-resolution pseudo-3D environment. These raster layers stay
+        // fixed while the projected road provides motion and depth.
+        const ni = this.wNight;
+        const environmentTint = lerpColor(0xffffff, this.wSky, 0.14);
+        this.mountainLayer.setTint(environmentTint).setAlpha(0.96 - ni * 0.08);
+        this.forestCityLayer.setTint(lerpColor(0xffffff, this.wSky, 0.10)).setAlpha(1 - ni * 0.05);
+
+        // Emissive window layer remains visible above the global night tint.
+        const windowGlow = smoothstep((ni - 0.16) / 0.52);
+        if (windowGlow > 0) {
+            // Only the two tall buildings — lower buildings are too tree-covered at game scale.
+            // Front face only (no side faces). Rows limited to visible window band.
+            const lightRegions = [
+                { x: 16,  y: 90, cols: 3, rows: 4, dx: 7, dy: 12 }, // left tall  (front face x≈14-34)
+                { x: 447, y: 90, cols: 3, rows: 4, dx: 7, dy: 12 }, // right tall (front face x≈445-466)
+            ];
+            for (let ri = 0; ri < lightRegions.length; ri++) {
+                const region = lightRegions[ri];
+                for (let row = 0; row < region.rows; row++) {
+                    for (let col = 0; col < region.cols; col++) {
+                        if (hash01(1500 + ri * 100 + row * 11 + col) < 0.38) continue;
+                        const wx = region.x + col * region.dx;
+                        const wy = region.y + row * region.dy;
+                        this.gHorizonLights.fillStyle(0xffc45e, windowGlow * 0.10);
+                        this.gHorizonLights.fillCircle(wx + 1.5, wy + 2.5, 5);
+                        this.gHorizonLights.fillStyle(0xffdfa0, windowGlow * 0.90);
+                        this.gHorizonLights.fillRect(wx, wy, 3, 5);
+                    }
+                }
+            }
+        }
+
 
 
         // Road scanlines. Safe flicker thresholds (dz/scanline < 0.5*period):
@@ -667,7 +846,12 @@ export class Game extends Scene {
         const g = this.gRoad;
         for (let y = HORIZON_Y + 30; y < H; y += SCAN) {
             const dy = y - HORIZON_Y;
-            const z  = (FOCAL * CAM_H) / dy;
+            // Invert the elevated-road projection iteratively so every screen
+            // scanline remains continuous while the far section climbs uphill.
+            let z = (FOCAL * CAM_H) / dy;
+            for (let hi = 0; hi < 4; hi++) {
+                z = (FOCAL * CAM_H) / (dy + roadHillLift(z));
+            }
             if (z > Z_ROAD_MAX) continue;
             const sc = FOCAL / z;
             const hw = ROAD_HW * sc;
@@ -732,9 +916,6 @@ export class Game extends Scene {
             }
         }
 
-
-        const FOG_DENSE = 50, FOG_H = 90;
-
         // Night overlay — blue tint deepens toward full night
         if (this.wNight > 0) {
             const ovCol = lerpColor(0x000818, 0x00082e, this.wNight);
@@ -745,15 +926,13 @@ export class Game extends Scene {
         // Roadside lamp posts (both sides, scroll with road)
         const lampFade = Math.max(0, (this.wNight - 0.2) / 0.35);
         if (lampFade > 0) {
-            const FOG_DENSE_L = 90, FOG_H_L = 240;
             const LAMP_SPACING = 380;
             const baseZ = ((this.dist % LAMP_SPACING) + LAMP_SPACING) % LAMP_SPACING;
             for (let zl = baseZ + 80; zl < Z_FAR; zl += LAMP_SPACING) {
                 const pL = proj(-ROAD_HW - 20, zl);
                 const pR = proj( ROAD_HW + 20, zl);
                 if (pL.y < HORIZON_Y || pL.y > H + 60) continue;
-                const fa2 = smoothstep((pL.y - HORIZON_Y - FOG_DENSE_L) / (FOG_H_L - FOG_DENSE_L));
-                const lfa = fa2 * lampFade;
+                const lfa = lampFade;
                 const sides = [{ p: pL, dir: 1 }, { p: pR, dir: -1 }];
                 for (const { p, dir } of sides) {
                     const th = Math.max(5, 78 * p.s);
@@ -782,13 +961,13 @@ export class Game extends Scene {
         }
 
         // Trees (far → near)
-        const ni = this.wNight;
         for (let ti = this.trees.length - 1; ti >= 0; ti--) {
             const t = this.trees[ti];
             if (t.z <= Z_NEAR || t.z > Z_FAR) continue;
             const p = proj(t.s * t.ox, t.z);
             if (p.y < HORIZON_Y || p.y > H + 100) continue;
-            const fa = smoothstep((p.y - HORIZON_Y - FOG_DENSE) / (FOG_H - FOG_DENSE));
+            const fa = fogFade(p.y);
+            if (fa < 0.02) continue;
             t.sprite.setVisible(false);
             if (t.isStone) {
                 const br = Math.max(3, 20 * p.s);
@@ -842,12 +1021,13 @@ export class Game extends Scene {
             if (e.z <= 1 || e.z > Z_FAR) { e.sprite.setVisible(false); continue; }
             const p = proj(LANE_CENTERS[e.lane], e.z);
             if (p.y < HORIZON_Y || p.y > H + 80) { e.sprite.setVisible(false); continue; }
-            const fa = smoothstep((p.y - HORIZON_Y - FOG_DENSE) / (FOG_H - FOG_DENSE));
+            const fa = fogFade(p.y);
             const laneRot = [0.26, 0, -0.26];
             e.sprite.setVisible(true)
                 .setPosition(p.x, p.y)
                 .setScale(p.s * 0.20)
                 .setAlpha(fa)
+                .setTint(0xffffff)
                 .setRotation(laneRot[e.lane])
                 .setDepth(3 - e.z / Z_FAR);
         }
@@ -857,11 +1037,12 @@ export class Game extends Scene {
             if (o.z <= 1 || o.z > Z_FAR) { o.sprite.setVisible(false); continue; }
             const p = proj(LANE_CENTERS[o.lane], o.z);
             if (p.y < HORIZON_Y || p.y > H + 80) { o.sprite.setVisible(false); continue; }
-            const fa = smoothstep((p.y - HORIZON_Y - FOG_DENSE) / (FOG_H - FOG_DENSE));
+            const fa = fogFade(p.y);
             o.sprite.setVisible(true)
                 .setPosition(p.x, p.y)
                 .setScale(p.s * (o.type === 'truck' ? 0.18 : 0.25))
                 .setAlpha(fa)
+                .setTint(0xffffff)
                 .setDepth(3 - o.z / Z_FAR);
         }
 
@@ -870,11 +1051,12 @@ export class Game extends Scene {
             if (ec.collected || ec.z <= 1 || ec.z > Z_FAR) { ec.sprite.setVisible(false); continue; }
             const p = proj(LANE_CENTERS[ec.lane], ec.z);
             if (p.y < HORIZON_Y || p.y > H + 80) { ec.sprite.setVisible(false); continue; }
-            const fa = smoothstep((p.y - HORIZON_Y - FOG_DENSE) / (FOG_H - FOG_DENSE));
+            const fa = fogFade(p.y);
             ec.sprite.setVisible(true)
                 .setPosition(p.x, p.y)
                 .setScale(p.s * 0.12)
                 .setAlpha(fa)
+                .setTint(0xffffff)
                 .setDepth(2.9 - ec.z / Z_FAR);
         }
 
@@ -883,7 +1065,7 @@ export class Game extends Scene {
             if (pu.collected || pu.z <= 1 || pu.z > Z_FAR) continue;
             const p = proj(LANE_CENTERS[pu.lane], pu.z);
             if (p.y < HORIZON_Y || p.y > H + 80) continue;
-            const fa = smoothstep((p.y - HORIZON_Y - FOG_DENSE) / (FOG_H - FOG_DENSE));
+            const fa = fogFade(p.y);
             const r = Math.max(7, 28 * p.s);
             if (pu.sprite) {
                 const t     = this.time.now / 1000;
@@ -891,11 +1073,12 @@ export class Game extends Scene {
                 if (pu.type === 'megaBomb') {
                     const sc = 0.42 * p.s * pulse;
                     pu.sprite.setVisible(true).setPosition(p.x, p.y).setScale(sc)
-                        .setAlpha(fa).setAngle(Math.sin(t * 3) * 14);
+                        .setAlpha(fa).setTint(0xffffff)
+                        .setAngle(Math.sin(t * 3) * 14);
                 } else {
                     const sc = 0.34 * p.s * pulse;
                     pu.sprite.setVisible(true).setPosition(p.x, p.y).setScale(sc)
-                        .setAlpha(fa).setAngle(0);
+                        .setAlpha(fa).setTint(0xffffff).setAngle(0);
                 }
             }
         }
