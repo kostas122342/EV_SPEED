@@ -96,6 +96,7 @@ export class Game extends Scene {
         this.sparks    = [];
         this.trees     = [];
         this.skidMarks = [];
+        this.treePool  = []; // grows lazily, sprites never destroyed
         this.score   = 0;
         this.energy  = 0;
         this.over    = false;
@@ -225,50 +226,54 @@ export class Game extends Scene {
                 this.obstacles.push(o);
             }
         }});
-        this.time.addEvent({ delay: 600, loop: true, callback: () => {
-            if (!this.over && this.started) {
-                const ox = ROAD_HW + 55 + rnd(0, 150);
-                const isStone = Math.random() < 0.5;
-                const mkTree = () => this.add.image(0, 0, 'tree').setOrigin(0.5, 1).setDepth(2.2).setVisible(false);
-                this.trees.push({ z: Z_FAR, s: -1, ox, isStone, sprite: mkTree() });
-                this.trees.push({ z: Z_FAR, s:  1, ox, isStone, sprite: mkTree() });
+        this.time.addEvent({ delay: 1800, loop: true, callback: () => {
+            if (!this.over && this.started && this.trees.length < 8) {
+                const getSprite = () => {
+                    const free = this.treePool.find(sp => !sp.getData('used'));
+                    if (free) { free.setData('used', true); return free; }
+                    const ns = this.add.image(0, 0, 'tree')
+                        .setOrigin(0.5, 1).setDepth(2.2).setVisible(false).setData('used', true);
+                    this.treePool.push(ns);
+                    return ns;
+                };
+                const ox = ROAD_HW + 60 + rnd(0, 100);
+                const is = Math.random() < 0.3;
+                this.trees.push({ z: Z_FAR, s: -1, ox, isStone: is, sprite: getSprite() });
+                this.trees.push({ z: Z_FAR, s:  1, ox, isStone: is, sprite: getSprite() });
             }
         }});
         this.time.addEvent({ delay: 1600, loop: true, callback: () => {
             if (!this.over && this.started) {
-                const busy = new Set([
-                    ...this.enemies.filter(e => e.z > 600).map(e => e.lane),
-                    ...this.obstacles.filter(o => o.z > 600).map(o => o.lane)
-                ]);
+                const allObjs = [...this.enemies, ...this.obstacles, ...this.energies.filter(ec => !ec.collected)];
+                const isBlocked = (lane, z) => allObjs.some(o => o.lane === lane && Math.abs(o.z - z) < 320);
+
+                const busy = new Set([0, 1, 2].filter(l => isBlocked(l, Z_FAR)));
                 const free = [0, 1, 2].filter(l => !busy.has(l));
                 if (free.length === 0) return;
-
-                // Build curved path: forced curve around obstacles, random curve otherwise
-                const allObjs = [...this.enemies, ...this.obstacles];
-                const isBlocked = (lane, z) => allObjs.some(o => o.lane === lane && Math.abs(o.z - z) < 280);
 
                 let curLane = free[Math.floor(Math.random() * free.length)];
                 const path = [];
                 let held = 0;
                 let holdFor = 2 + Math.floor(Math.random() * 2);
                 for (let i = 0; i < 6; i++) {
-                    const coinZ = Z_FAR - i * 90;
+                    const coinZ = Z_FAR - i * 80;
                     if (isBlocked(curLane, coinZ)) {
                         const adj = [curLane - 1, curLane + 1].filter(l => l >= 0 && l <= 2 && !isBlocked(l, coinZ));
                         if (adj.length > 0) { curLane = adj[Math.floor(Math.random() * adj.length)]; held = 0; holdFor = 2 + Math.floor(Math.random() * 2); }
+                        else continue;
                     } else if (held >= holdFor) {
-                        const adj = [curLane - 1, curLane + 1].filter(l => l >= 0 && l <= 2);
+                        const adj = [curLane - 1, curLane + 1].filter(l => l >= 0 && l <= 2 && !isBlocked(l, coinZ));
                         if (adj.length > 0) curLane = adj[Math.floor(Math.random() * adj.length)];
                         held = 0;
                         holdFor = 2 + Math.floor(Math.random() * 2);
                     } else {
                         held++;
                     }
-                    path.push(curLane);
+                    path.push({ lane: curLane, z: coinZ });
                 }
 
-                for (let i = 0; i < 6; i++) {
-                    const ec = { z: Z_FAR - i * 90, lane: path[i], collected: false };
+                for (const pt of path) {
+                    const ec = { z: pt.z, lane: pt.lane, collected: false };
                     ec.sprite = this.add.image(0, 0, 'energyCoin')
                         .setOrigin(0.5, 0.5).setDepth(2.8).setVisible(false);
                     this.energies.push(ec);
@@ -515,7 +520,7 @@ export class Game extends Scene {
         for (let i = this.trees.length - 1; i >= 0; i--) {
             this.trees[i].z -= this.spd * dt;
             if (this.trees[i].z < Z_NEAR - 120) {
-                this.trees[i].sprite.destroy();
+                this.trees[i].sprite.setVisible(false).setData('used', false);
                 this.trees.splice(i, 1);
             }
         }
@@ -584,6 +589,12 @@ export class Game extends Scene {
         if (this.puBombT  > 0) this.puBombT  -= dt;
 
         for (const e of this.enemies) {
+            // Stop-phase enemies sit at z≈350-400 which projects above the normal y-bounds.
+            // Use z+x proximity so the player must actually reach the car horizontally.
+            if (e.rushPhase === 'stop' && e.z <= Z_NEAR + 200) {
+                const sp = proj(LANE_CENTERS[e.lane], Math.max(e.z, 1));
+                if (Math.abs(this.px - sp.x) < 38 * sp.s) { this.die(); return; }
+            }
             const ep   = proj(LANE_CENTERS[e.lane], Math.max(e.z, 1));
             const bodyY  = ep.y;
             const bodyHH = 5 * ep.s;
@@ -647,46 +658,70 @@ export class Game extends Scene {
         this.gBg.fillStyle(this.wGrass, 1);
         this.gBg.fillRect(0, HORIZON_Y, W, H - HORIZON_Y);
 
-        // Road scanlines
+
+
+        // Road scanlines. Safe flicker thresholds (dz/scanline < 0.5*period):
+        //   road stripes (p=120): dy>74   curbs (p=60): dy>104
+        //   grass t4 (p=130): dy>71       grass t3 (p=51): dy>113
+        const Z_ROAD_MAX = 1800;
         const g = this.gRoad;
-        for (let y = HORIZON_Y + SCAN; y < H; y += SCAN) {
+        for (let y = HORIZON_Y + 30; y < H; y += SCAN) {
             const dy = y - HORIZON_Y;
             const z  = (FOCAL * CAM_H) / dy;
+            if (z > Z_ROAD_MAX) continue;
             const sc = FOCAL / z;
             const hw = ROAD_HW * sc;
             const cx = W / 2;
 
-            const seg  = (Math.floor((z + this.dist) / 120) & 1);
-            const cseg = (Math.floor((z + this.dist) / 60)  & 1);
-            const ph   = ((z + this.dist) % DASH_P + DASH_P) % DASH_P;
-
-            g.fillStyle(seg ? 0x606060 : 0x4e4e4e, 1);
+            // Road surface: alternating stripes where stable, solid blend near horizon
+            if (dy > 74) {
+                const seg = (Math.floor((z + this.dist) / 120) & 1);
+                g.fillStyle(seg ? 0x606060 : 0x4e4e4e, 1);
+            } else {
+                g.fillStyle(0x565656, 1);
+            }
             g.fillRect(cx - hw, y, hw * 2, SCAN);
 
             const cw = Math.max(SCAN, hw * 0.07);
-            g.fillStyle(cseg ? 0xffffff : 0xdd1111, 1);
+
+            // Curbs: period 60 where stable (dy>105), wider period 180 in far zone (dy>60)
+            if (dy > 105) {
+                const cseg = (Math.floor((z + this.dist) / 60) & 1);
+                g.fillStyle(cseg ? 0xffffff : 0xdd1111, 1);
+            } else {
+                const cseg = (Math.floor((z + this.dist) / 180) & 1);
+                g.fillStyle(cseg ? 0xffffff : 0xdd1111, 1);
+            }
             g.fillRect(cx - hw - cw, y, cw, SCAN);
             g.fillRect(cx + hw,      y, cw, SCAN);
 
-            // Side ground texture (perspective-correct multi-frequency)
+            // Side ground texture: use stable frequencies per zone
             const zd = z + this.dist;
-            const t1 = (Math.floor(zd / 22)  & 1);
-            const t2 = (Math.floor(zd / 9)   & 1);
-            const t3 = (Math.floor(zd / 51)  & 1);
-            const t4 = (Math.floor(zd / 130) & 1);
-            if (this.theme === 'city') {
-                const base  = t4 ? 0x787e86 : 0x6a7078;
-                const mark  = t1 && t2 ? 0x595f67 : t3 ? 0x82888e : base;
-                g.fillStyle(mark, 1);
+            if (dy > 113) {
+                const t3 = (Math.floor(zd / 51)  & 1);
+                const t4 = (Math.floor(zd / 130) & 1);
+                if (this.theme === 'city') {
+                    g.fillStyle(t4 ? 0x787e86 : t3 ? 0x72787e : 0x6a7078, 1);
+                } else {
+                    const gc = this.wGrass;
+                    g.fillStyle(t4 ? lerpColor(gc, 0x000000, 0.11) : t3 ? lerpColor(gc, 0x000000, 0.06) : gc, 1);
+                }
+            } else if (dy > 71) {
+                const t4 = (Math.floor(zd / 130) & 1);
+                if (this.theme === 'city') {
+                    g.fillStyle(t4 ? 0x787e86 : 0x6a7078, 1);
+                } else {
+                    const gc = this.wGrass;
+                    g.fillStyle(t4 ? lerpColor(gc, 0x000000, 0.11) : gc, 1);
+                }
             } else {
-                const gc = this.wGrass;
-                const base = t4 ? lerpColor(gc, 0x000000, 0.12) : t3 ? gc : lerpColor(gc, 0x000000, 0.06);
-                const dark = t1 && t2 && t3;
-                g.fillStyle(dark ? lerpColor(gc, 0x000000, 0.22) : base, 1);
+                g.fillStyle(this.theme === 'city' ? 0x6a7078 : this.wGrass, 1);
             }
             g.fillRect(0,            y, cx - hw - cw, SCAN);
             g.fillRect(cx + hw + cw, y, W - (cx + hw + cw), SCAN);
 
+            // Lane dashes
+            const ph = ((z + this.dist) % DASH_P + DASH_P) % DASH_P;
             if (ph < DASH_LEN) {
                 g.fillStyle(0xffffff, 1);
                 const dw = Math.max(1, 3 * sc);
@@ -697,17 +732,8 @@ export class Game extends Scene {
             }
         }
 
-        const FOG_DENSE = 90;
-        const FOG_H     = 240;
 
-        // Horizon fog: dense near horizon, fades toward player
-        for (let fy = 0; fy < FOG_H; fy += 2) {
-            const alpha = fy < FOG_DENSE
-                ? 1.0
-                : 1.0 - smoothstep((fy - FOG_DENSE) / (FOG_H - FOG_DENSE));
-            this.gFog.fillStyle(this.wFog, alpha);
-            this.gFog.fillRect(0, HORIZON_Y + fy, W, 2);
-        }
+        const FOG_DENSE = 50, FOG_H = 90;
 
         // Night overlay — blue tint deepens toward full night
         if (this.wNight > 0) {
@@ -756,19 +782,23 @@ export class Game extends Scene {
         }
 
         // Trees (far → near)
-        const ts = [...this.trees].sort((a, b) => b.z - a.z);
-        for (const t of ts) {
+        const ni = this.wNight;
+        for (let ti = this.trees.length - 1; ti >= 0; ti--) {
+            const t = this.trees[ti];
             if (t.z <= Z_NEAR || t.z > Z_FAR) continue;
             const p = proj(t.s * t.ox, t.z);
             if (p.y < HORIZON_Y || p.y > H + 100) continue;
             const fa = smoothstep((p.y - HORIZON_Y - FOG_DENSE) / (FOG_H - FOG_DENSE));
             t.sprite.setVisible(false);
-            if (t.isStone) continue;
-
-            const ni = this.wNight;
-            const lampFade = Math.max(0, (ni - 0.2) / 0.4); // 0→1 as night approaches
-
-            // Athens tree (darkened by night)
+            if (t.isStone) {
+                const br = Math.max(3, 20 * p.s);
+                this.gEnv.fillStyle(lerpColor(0x356e18, 0x091506, ni), fa);
+                this.gEnv.fillCircle(p.x, p.y - br * 0.55, br);
+                this.gEnv.fillStyle(lerpColor(0x4a9222, 0x0c1c08, ni), fa * 0.7);
+                this.gEnv.fillCircle(p.x - br * 0.35, p.y - br * 0.85, br * 0.62);
+                continue;
+            }
+            const lampFade = Math.max(0, (ni - 0.2) / 0.4);
             if (lampFade < 1) {
                 const treeFa = fa * (1 - lampFade);
                 const th = Math.max(9, 95 * p.s);
@@ -785,8 +815,6 @@ export class Game extends Scene {
                 this.gEnv.fillStyle(lerpColor(0x3d8a25, 0x0e2208, ni), treeFa * 0.75);
                 this.gEnv.fillCircle(p.x - tr * 0.3, foliageCY - tr * 0.2, tr * 0.72);
             }
-
-            // Lamp post (fades in at night)
             if (lampFade > 0) {
                 const lfa = fa * lampFade;
                 const th = Math.max(6, 80 * p.s);
@@ -795,10 +823,8 @@ export class Game extends Scene {
                 this.gEnv.fillStyle(0x7788aa, lfa);
                 this.gEnv.fillRect(p.x - tw / 2, p.y - th, tw, th);
                 this.gEnv.fillRect(p.x - tw / 2, p.y - th, tw * 3, tw);
-                // Lamp glow
                 this.gEnv.fillStyle(0xfff0cc, lfa);
                 this.gEnv.fillCircle(p.x + tw * 1.5, p.y - th, lr);
-                // Light cone
                 if (lampFade > 0.3) {
                     const coneA = lfa * (lampFade - 0.3) * 0.35;
                     this.gEnv.fillStyle(0xfff0aa, coneA);
@@ -863,11 +889,11 @@ export class Game extends Scene {
                 const t     = this.time.now / 1000;
                 const pulse = 1 + 0.18 * Math.sin(t * 5);
                 if (pu.type === 'megaBomb') {
-                    const sc = Math.max(0.12, 0.42 * p.s) * pulse;
+                    const sc = 0.42 * p.s * pulse;
                     pu.sprite.setVisible(true).setPosition(p.x, p.y).setScale(sc)
                         .setAlpha(fa).setAngle(Math.sin(t * 3) * 14);
                 } else {
-                    const sc = Math.max(0.10, 0.34 * p.s) * pulse;
+                    const sc = 0.34 * p.s * pulse;
                     pu.sprite.setVisible(true).setPosition(p.x, p.y).setScale(sc)
                         .setAlpha(fa).setAngle(0);
                 }
