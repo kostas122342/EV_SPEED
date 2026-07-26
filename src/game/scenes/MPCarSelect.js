@@ -19,7 +19,7 @@ const DRIVER_NAMES = [
 ];
 
 const ALL_CARS = [
-    { key: 'playerCar', name: 'EV 3',    unlockKey: null,              scale: 0.39, offY: -80, offX: 0 },
+    { key: 'playerCar', name: 'EV 3',    unlockKey: null,              scale: 0.238, offY: -85, offX: 1 },
     { key: 'modelY',    name: 'EV Y',    unlockKey: 'evspeed_carY',    scale: 0.10, offY: -12, offX: 0 },
     { key: 'evS',       name: 'EV S',    unlockKey: 'evspeed_evS',     scale: 0.14, offY: -18, offX: 0 },
     { key: 'evX',       name: 'EV X',    unlockKey: 'evspeed_evX',     scale: 0.10, offY: -18, offX: 0 },
@@ -31,8 +31,8 @@ const ALL_CARS = [
 const CARS_WITH_COLORS = {
     playerCar: [
         { variantKey: 'playerCar', unlockKey: null,                     swatch: 0xd8d8d8 },
-        { variantKey: 'ev3Blue',   unlockKey: 'evspeed_color_ev3Blue',  swatch: 0x2255ee, scale: 0.205, offX: 5, offY: 6 },
-        { variantKey: 'ev3Red',    unlockKey: 'evspeed_color_ev3Red',   swatch: 0xdd2222, scale: 0.197, offX: 2, offY: 8 },
+        { variantKey: 'ev3Blue',   unlockKey: 'evspeed_color_ev3Blue',  swatch: 0x2255ee, scale: 0.205, offX: 4, offY: 11 },
+        { variantKey: 'ev3Red',    unlockKey: 'evspeed_color_ev3Red',   swatch: 0xdd2222, scale: 0.197, offX: 1, offY: 13 },
     ],
     modelY: [
         { variantKey: 'evYWhite', previewKey: 'selectEvYWhite', unlockKey: 'evspeed_color_evYWhite', swatch: 0xffffff },
@@ -115,7 +115,7 @@ export class MPCarSelect extends Scene {
         this.isSingle = data.mode === 'single';
 
         this.cars = buildCarsList();
-        if (this.cars.length === 0) this.cars = [{ key: 'playerCar', name: 'EV 3', unlockKey: null, scale: 0.39, offY: -80, offX: 0, variantKey: 'playerCar', swatch: 0xd8d8d8 }];
+        if (this.cars.length === 0) this.cars = [{ key: 'playerCar', name: 'EV 3', unlockKey: null, scale: 0.238, offY: -85, offX: 1, variantKey: 'playerCar', swatch: 0xd8d8d8 }];
 
         // The carousel contains one entry per model; colors are selected inside its card.
         const lastCar = localStorage.getItem('evspeed_selected_car') || 'playerCar';
