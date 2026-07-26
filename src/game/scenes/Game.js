@@ -8,6 +8,23 @@ const ROAD_HW = 280;
 const LANE_CENTERS = [-ROAD_HW * 0.67, 0, ROAD_HW * 0.67];
 const DASH_LEN = 80, DASH_GAP = 80, DASH_P = DASH_LEN + DASH_GAP;
 const SCAN = 3;
+const CITY_LAYER_VARIANTS = [
+    { swapped: false, size: 1.00, side: 40,  ground: 0 },
+    { swapped: true,  size: 0.88, side: 88,  ground: 8 },
+    { swapped: false, size: 0.96, side: 126, ground: 4 },
+    { swapped: true,  size: 0.82, side: 62,  ground: 12 },
+];
+const CITY_LAYER_COUNT = CITY_LAYER_VARIANTS.length;
+const CITY_LAYER_NEAR_Z = 480;
+const CITY_LAYER_FAR_Z = 2680;
+const CITY_LAYER_SPAN = CITY_LAYER_FAR_Z - CITY_LAYER_NEAR_Z;
+const CITY_LAYER_SCROLL = 0.16;
+const CITY_BANK_W = 1086;
+// The source is 724 px tall, but its final 53 rows are fully transparent.
+// Cropping them makes the visible tree roots, not the empty canvas, touch ground.
+const CITY_BANK_H = 671;
+const CITY_LEFT_INNER_GAP = 133;
+const CITY_RIGHT_INNER_GAP = 117;
 
 
 function roadHillLift(wz) {
@@ -34,13 +51,38 @@ function lerpColor(a, b, t) {
     return ((ar + (br - ar) * t | 0) << 16) | ((ag + (bg - ag) * t | 0) << 8) | (ab + (bb - ab) * t | 0);
 }
 
-const WEATHER_STATES = [
-    { sky: 0x87CEEB, grass: 0x4a8c3f, night: 0.0  },  // Day
-    { sky: 0x9aaabb, grass: 0x3d7a35, night: 0.1  },  // Overcast
-    { sky: 0xe06030, grass: 0x4a4e24, night: 0.35 },  // Sunset
-    { sky: 0x080820, grass: 0x0e180e, night: 1.0  },  // Night
-    { sky: 0xbb5577, grass: 0x3a3e28, night: 0.4  },  // Dawn
+const DAY_CYCLE_SECONDS = 60;
+const DAY_CYCLE_KEYS = [
+    { t: 0.00, sky: 0x78c9ed, grass: 0x4a8c3f, night: 0.00, sunX: 240, sunY: 54,  sunAlpha: 1.00, sun: 0xfff2ad },
+    { t: 0.18, sky: 0x82c9e5, grass: 0x4c873c, night: 0.00, sunX: 245, sunY: 78,  sunAlpha: 1.00, sun: 0xffdf8b },
+    { t: 0.34, sky: 0xe47745, grass: 0x596b32, night: 0.20, sunX: 254, sunY: 160, sunAlpha: 1.00, sun: 0xffa94b },
+    { t: 0.42, sky: 0x5b456f, grass: 0x293a27, night: 0.62, sunX: 258, sunY: 205, sunAlpha: 0.08, sun: 0xff7b3d },
+    { t: 0.48, sky: 0x07152e, grass: 0x111b16, night: 1.00, sunX: 258, sunY: 230, sunAlpha: 0.00, sun: 0xff6a35 },
+    { t: 0.67, sky: 0x07152e, grass: 0x111b16, night: 1.00, sunX: 222, sunY: 230, sunAlpha: 0.00, sun: 0xff6a35 },
+    { t: 0.73, sky: 0x493b65, grass: 0x243228, night: 0.68, sunX: 222, sunY: 205, sunAlpha: 0.10, sun: 0xff8745 },
+    { t: 0.84, sky: 0xe68455, grass: 0x596e35, night: 0.18, sunX: 228, sunY: 145, sunAlpha: 1.00, sun: 0xffba62 },
+    { t: 0.94, sky: 0x7bcbed, grass: 0x4a8c3f, night: 0.00, sunX: 237, sunY: 72,  sunAlpha: 1.00, sun: 0xffe99b },
+    { t: 1.00, sky: 0x78c9ed, grass: 0x4a8c3f, night: 0.00, sunX: 240, sunY: 54,  sunAlpha: 1.00, sun: 0xfff2ad },
 ];
+
+function sampleDayCycle(phase) {
+    for (let i = 0; i < DAY_CYCLE_KEYS.length - 1; i++) {
+        const from = DAY_CYCLE_KEYS[i];
+        const to = DAY_CYCLE_KEYS[i + 1];
+        if (phase > to.t) continue;
+        const blend = smoothstep((phase - from.t) / (to.t - from.t));
+        return {
+            sky:      lerpColor(from.sky, to.sky, blend),
+            grass:    lerpColor(from.grass, to.grass, blend),
+            night:    from.night + (to.night - from.night) * blend,
+            sunX:     from.sunX + (to.sunX - from.sunX) * blend,
+            sunY:     from.sunY + (to.sunY - from.sunY) * blend,
+            sunAlpha: from.sunAlpha + (to.sunAlpha - from.sunAlpha) * blend,
+            sun:      lerpColor(from.sun, to.sun, blend),
+        };
+    }
+    return DAY_CYCLE_KEYS[DAY_CYCLE_KEYS.length - 1];
+}
 
 export class Game extends Scene {
     constructor() { super('Game'); }
@@ -133,29 +175,51 @@ export class Game extends Scene {
 
         this.theme = 'athens';
 
-        // Weather / time-of-day
-        this.weatherIdx = 0;
-        this.weatherNext = 1;
-        this.weatherT = 1.0;
-        this.wSky   = WEATHER_STATES[0].sky;
-        this.wGrass = WEATHER_STATES[0].grass;
-        this.wNight = 0.0;
+        // Continuous solar day/night cycle. Starting in late morning gives the
+        // player time to see the sun before the first sunset.
+        this.dayCycleT = 0.10;
+        const initialDay = sampleDayCycle(this.dayCycleT);
+        this.wSky     = initialDay.sky;
+        this.wGrass   = initialDay.grass;
+        this.wNight   = initialDay.night;
+        this.sunX     = initialDay.sunX;
+        this.sunY     = initialDay.sunY;
+        this.sunAlpha = initialDay.sunAlpha;
+        this.sunColor = initialDay.sun;
 
         this.gBg    = this.add.graphics().setDepth(0);
+        this.gSkyFx = this.add.graphics().setDepth(0.2);
         this.mountainLayer = this.add.image(W / 2, HORIZON_Y + 60, 'mountainLayer')
             .setOrigin(0.5, 1)
             .setDisplaySize(560, 265)
             .setDepth(0.35);
-        this.forestCityLayer = this.add.image(W / 2, HORIZON_Y + 61, 'forestCityLayer')
-            .setOrigin(0.5, 1)
-            .setDisplaySize(560, 187)
-            .setDepth(0.5);
+        const cityTexture = this.textures.get('forestCityLayer');
+        if (!cityTexture.has('cityBankLeftGrounded')) {
+            cityTexture.add('cityBankLeftGrounded', 0, 0, 0, CITY_BANK_W, CITY_BANK_H);
+            cityTexture.add('cityBankRightGrounded', 0, CITY_BANK_W, 0, CITY_BANK_W, CITY_BANK_H);
+        }
+        this.cityDepthLayers = Array.from({ length: CITY_LAYER_COUNT }, (_, i) => {
+            const variant = CITY_LAYER_VARIANTS[i];
+            const leftFrame = variant.swapped ? 'cityBankRightGrounded' : 'cityBankLeftGrounded';
+            const rightFrame = variant.swapped ? 'cityBankLeftGrounded' : 'cityBankRightGrounded';
+            const left = this.add.image(W / 2, HORIZON_Y, 'forestCityLayer', leftFrame)
+                .setOrigin(1, 1)
+                .setFlipX(variant.swapped)
+                .setDepth(0.5);
+            const right = this.add.image(W / 2, HORIZON_Y, 'forestCityLayer', rightFrame)
+                .setOrigin(0, 1)
+                .setFlipX(variant.swapped)
+                .setDepth(0.5);
+            return { left, right, index: i, variant };
+        });
         this.gRoad  = this.add.graphics().setDepth(1);
         this.gFog   = this.add.graphics().setDepth(1.45);
         this.gCity  = this.add.graphics().setDepth(1.7);
         this.gEnv   = this.add.graphics().setDepth(2);
-        this.gNight = this.add.graphics().setDepth(2.8);
-        this.gHorizonLights = this.add.graphics().setDepth(2.9);
+        // Keep the night wash above every moving world object so cars and
+        // pickups do not suddenly brighten as their perspective depth changes.
+        this.gNight = this.add.graphics().setDepth(3.2);
+        this.gHorizonLights = this.add.graphics().setDepth(3.3);
         this.gCar   = this.add.graphics().setDepth(3);
 
         this.carRot = 0;
@@ -248,10 +312,6 @@ export class Game extends Scene {
                     .setOrigin(0.5, enemyType.originY).setDepth(2.5).setVisible(false);
                 this.enemies.push(e);
             }
-        }});
-
-        this.time.addEvent({ delay: 18000, loop: true, callback: () => {
-            if (!this.over) this.weatherT = 0;
         }});
 
         this.time.addEvent({ delay: 2200, loop: true, callback: () => {
@@ -700,19 +760,16 @@ export class Game extends Scene {
         this.tSc.setText('SCORE: ' + this.score);
         this.tSp.setText(Math.min(200, Math.floor(100 + (this.spd - 350) / 5)) + ' KM/H');
 
-        // Weather transition (8s blend)
-        if (this.weatherT < 1.0) {
-            this.weatherT = Math.min(1.0, this.weatherT + dt / 8);
-            const from = WEATHER_STATES[this.weatherIdx];
-            const to   = WEATHER_STATES[this.weatherNext];
-            this.wSky   = lerpColor(from.sky,   to.sky,   this.weatherT);
-            this.wGrass = lerpColor(from.grass, to.grass, this.weatherT);
-            this.wNight = from.night + (to.night - from.night) * this.weatherT;
-            if (this.weatherT >= 1.0) {
-                this.weatherIdx  = this.weatherNext;
-                this.weatherNext = (this.weatherIdx + 1) % WEATHER_STATES.length;
-            }
-        }
+        // Continuous sunset → night → sunrise cycle.
+        this.dayCycleT = (this.dayCycleT + dt / DAY_CYCLE_SECONDS) % 1;
+        const day = sampleDayCycle(this.dayCycleT);
+        this.wSky     = day.sky;
+        this.wGrass   = day.grass;
+        this.wNight   = day.night;
+        this.sunX     = day.sunX;
+        this.sunY     = day.sunY;
+        this.sunAlpha = day.sunAlpha;
+        this.sunColor = day.sun;
 
         this.redraw();
     }
@@ -844,6 +901,7 @@ export class Game extends Scene {
         const fogFade = (py) => smoothstep((py - HORIZON_Y - 30) / 50);
 
         this.gBg.clear();
+        this.gSkyFx.clear();
         this.gRoad.clear();
         this.gFog.clear();
         this.gCity.clear();
@@ -855,6 +913,41 @@ export class Game extends Scene {
         // Sky
         this.gBg.fillStyle(this.wSky, 1);
         this.gBg.fillRect(0, 0, W, HORIZON_Y);
+
+        // Stars fade in only after dusk. Their deterministic positions avoid
+        // flicker while a tiny phase-based pulse keeps the night sky alive.
+        const starAlpha = smoothstep((this.wNight - 0.38) / 0.52);
+        if (starAlpha > 0) {
+            for (let i = 0; i < 34; i++) {
+                const sx = 12 + hash01(2100 + i * 7) * (W - 24);
+                const sy = 14 + hash01(3100 + i * 11) * (HORIZON_Y - 32);
+                const twinkle = 0.62 + 0.38 * Math.sin(this.dayCycleT * Math.PI * 2 * (2 + hash01(i + 91)) + i);
+                const sa = starAlpha * (0.28 + hash01(4100 + i * 13) * 0.60) * twinkle;
+                this.gSkyFx.fillStyle(i % 7 === 0 ? 0xbfdcff : 0xffffff, sa);
+                this.gSkyFx.fillCircle(sx, sy, i % 9 === 0 ? 1.35 : 0.8);
+            }
+        }
+
+        // Layered glow keeps the sun crisp in the centre while giving it a
+        // natural atmospheric halo near sunset and sunrise. The mountains have
+        // greater depth, so the disc genuinely disappears behind their ridge.
+        const visibleSunAlpha = this.sunAlpha * (1 - this.wNight * 0.28);
+        if (visibleSunAlpha > 0.002) {
+            const lowSun = smoothstep((this.sunY - 72) / 100);
+            const outerRadius = 42 + lowSun * 18;
+            this.gSkyFx.fillStyle(this.sunColor, visibleSunAlpha * (0.035 + lowSun * 0.025));
+            this.gSkyFx.fillCircle(this.sunX, this.sunY, outerRadius);
+            this.gSkyFx.fillStyle(this.sunColor, visibleSunAlpha * 0.075);
+            this.gSkyFx.fillCircle(this.sunX, this.sunY, 29 + lowSun * 8);
+            this.gSkyFx.fillStyle(this.sunColor, visibleSunAlpha * 0.16);
+            this.gSkyFx.fillCircle(this.sunX, this.sunY, 19 + lowSun * 4);
+            this.gSkyFx.fillStyle(this.sunColor, visibleSunAlpha * (0.05 + lowSun * 0.06));
+            this.gSkyFx.fillEllipse(this.sunX, Math.min(this.sunY + 3, HORIZON_Y - 2), 150 + lowSun * 70, 25 + lowSun * 16);
+            this.gSkyFx.fillStyle(lerpColor(this.sunColor, 0xffffff, 0.55), visibleSunAlpha);
+            this.gSkyFx.fillCircle(this.sunX, this.sunY, 10.5 + lowSun * 1.5);
+            this.gSkyFx.fillStyle(0xffffff, visibleSunAlpha * 0.62);
+            this.gSkyFx.fillCircle(this.sunX - 2.5, this.sunY - 2.5, 5.5);
+        }
 
         // Grass
         this.gBg.fillStyle(this.wGrass, 1);
@@ -868,33 +961,144 @@ export class Game extends Scene {
         this.gFog.fillGradientStyle(fogColor, fogColor, fogColor, fogColor, 0.92, 0.92, 0, 0);
         this.gFog.fillRect(0, HORIZON_Y + 30, W, 35);  // y=210→245: alpha 92→0%
 
-        // Layered high-resolution pseudo-3D environment. These raster layers stay
-        // fixed while the projected road provides motion and depth.
+        // Layered high-resolution pseudo-3D environment. Mountains stay fixed;
+        // the split city banks below move through projected world depth.
         const ni = this.wNight;
         const environmentTint = lerpColor(0xffffff, this.wSky, 0.14);
-        this.mountainLayer.setTint(environmentTint).setAlpha(0.96 - ni * 0.08);
-        this.forestCityLayer.setTint(lerpColor(0xffffff, this.wSky, 0.10)).setAlpha(1 - ni * 0.05);
+        this.mountainLayer
+            .setPosition(W / 2, HORIZON_Y + 60)
+            .setTint(environmentTint)
+            .setAlpha(0.96 - ni * 0.08);
+        const cityTint = lerpColor(0xffffff, this.wSky, 0.10);
+        const cityAlpha = 1 - ni * 0.05;
+
+        // Perspective city banks. Left and right halves travel independently
+        // away from the vanishing point as they approach the camera. Each bank
+        // stays at or below native scale, then recycles only after its visible
+        // content has left the side of the screen.
+        const renderedCityLayers = [];
+        const citySpacing = CITY_LAYER_SPAN / CITY_LAYER_COUNT;
+        const cityTravel = ((this.dist * CITY_LAYER_SCROLL) % CITY_LAYER_SPAN + CITY_LAYER_SPAN) % CITY_LAYER_SPAN;
+        for (const layer of this.cityDepthLayers) {
+            const layerTravel = (cityTravel + layer.index * citySpacing) % CITY_LAYER_SPAN;
+            const z = CITY_LAYER_FAR_Z - layerTravel;
+            const p = proj(0, z);
+            const bankScale = (CITY_LAYER_NEAR_Z / z) * layer.variant.size;
+            const bankH = CITY_BANK_H * bankScale;
+            const spread = (ROAD_HW + layer.variant.side) * p.s;
+            const leftX = W / 2 - spread;
+            const rightX = W / 2 + spread;
+            const bankBottom = p.y + layer.variant.ground * p.s;
+            const farFade = smoothstep((CITY_LAYER_FAR_Z - z) / 190);
+            const nearFade = smoothstep((z - CITY_LAYER_NEAR_Z) / 120);
+            const atmosphere = 0.58 + 0.42 * smoothstep((CITY_LAYER_FAR_Z - z) / 950);
+            const alpha = cityAlpha * farFade * nearFade * atmosphere;
+            const depthT = 1 - (z - CITY_LAYER_NEAR_Z) / CITY_LAYER_SPAN;
+            const haze = Math.max(0, Math.min(0.34, (1 - depthT) * 0.34));
+            const layerTint = lerpColor(cityTint, this.wSky, haze);
+            const depth = 0.42 + depthT * 0.42;
+
+            layer.left
+                .setVisible(alpha > 0.004)
+                .setPosition(leftX, bankBottom)
+                .setScale(bankScale)
+                .setTint(layerTint)
+                .setAlpha(alpha)
+                .setDepth(depth);
+            layer.right
+                .setVisible(alpha > 0.004)
+                .setPosition(rightX, bankBottom)
+                .setScale(bankScale)
+                .setTint(layerTint)
+                .setAlpha(alpha)
+                .setDepth(depth);
+
+            if (alpha > 0.004) {
+                renderedCityLayers.push({
+                    leftX,
+                    rightX,
+                    bottom: bankBottom,
+                    height: bankH,
+                    scale: bankScale,
+                    alpha,
+                    swapped: layer.variant.swapped,
+                    z,
+                });
+            }
+        }
+
+        // A small extra haze bank only at the roots of distant tree rows.
+        // It blends them into the raised terrain without fogging the road centre
+        // or washing out the nearer scenery.
+        for (const city of renderedCityLayers) {
+            if (city.z < 1500) continue;
+            const distanceFog = smoothstep((city.z - 1500) / 700);
+            const fogAlpha = 0.16 * distanceFog * city.alpha;
+            if (fogAlpha < 0.004) continue;
+
+            const leftGap = city.swapped ? CITY_RIGHT_INNER_GAP : CITY_LEFT_INNER_GAP;
+            const rightGap = city.swapped ? CITY_LEFT_INNER_GAP : CITY_RIGHT_INNER_GAP;
+            const leftEnd = Math.max(0, Math.min(W, city.leftX - leftGap * city.scale));
+            const rightStart = Math.max(0, Math.min(W, city.rightX + rightGap * city.scale));
+            const fogHalfH = Math.max(6, 13 * city.scale);
+
+            this.gFog.fillGradientStyle(
+                fogColor, fogColor, fogColor, fogColor,
+                0, 0, fogAlpha, fogAlpha
+            );
+            this.gFog.fillRect(0, city.bottom - fogHalfH, leftEnd, fogHalfH);
+            this.gFog.fillRect(rightStart, city.bottom - fogHalfH, W - rightStart, fogHalfH);
+            this.gFog.fillGradientStyle(
+                fogColor, fogColor, fogColor, fogColor,
+                fogAlpha, fogAlpha, 0, 0
+            );
+            this.gFog.fillRect(0, city.bottom, leftEnd, fogHalfH);
+            this.gFog.fillRect(rightStart, city.bottom, W - rightStart, fogHalfH);
+
+            // Rounded inner caps prevent a visible vertical edge where the
+            // localized root fog meets the clear road opening.
+            this.gFog.fillStyle(fogColor, fogAlpha * 0.55);
+            this.gFog.fillEllipse(leftEnd, city.bottom, fogHalfH * 2.4, fogHalfH * 1.6);
+            this.gFog.fillEllipse(rightStart, city.bottom, fogHalfH * 2.4, fogHalfH * 1.6);
+        }
 
         // Emissive window layer remains visible above the global night tint.
         const windowGlow = smoothstep((ni - 0.16) / 0.52);
         if (windowGlow > 0) {
-            // Only the two tall buildings — lower buildings are too tree-covered at game scale.
-            // Front face only (no side faces). Rows limited to visible window band.
+            // Window glows use normalized coordinates so they remain attached
+            // to each moving building row at every perspective scale.
             const lightRegions = [
-                { x: 16,  y: 90, cols: 3, rows: 4, dx: 7, dy: 12 }, // left tall  (front face x≈14-34)
-                { x: 447, y: 90, cols: 3, rows: 4, dx: 7, dy: 12 }, // right tall (front face x≈445-466)
+                { bank: 'left',  sourceX: 217, cols: 3, rows: 4 },
+                { bank: 'right', sourceX: 803, cols: 3, rows: 4 },
             ];
-            for (let ri = 0; ri < lightRegions.length; ri++) {
-                const region = lightRegions[ri];
-                for (let row = 0; row < region.rows; row++) {
-                    for (let col = 0; col < region.cols; col++) {
-                        if (hash01(1500 + ri * 100 + row * 11 + col) < 0.38) continue;
-                        const wx = region.x + col * region.dx;
-                        const wy = region.y + row * region.dy;
-                        this.gHorizonLights.fillStyle(0xffc45e, windowGlow * 0.10);
-                        this.gHorizonLights.fillCircle(wx + 1.5, wy + 2.5, 5);
-                        this.gHorizonLights.fillStyle(0xffdfa0, windowGlow * 0.90);
-                        this.gHorizonLights.fillRect(wx, wy, 3, 5);
+            for (let li = 0; li < renderedCityLayers.length; li++) {
+                const city = renderedCityLayers[li];
+                const top = city.bottom - city.height;
+                for (let ri = 0; ri < lightRegions.length; ri++) {
+                    const region = lightRegions[ri];
+                    const innerDistance = region.bank === 'left'
+                        ? (city.swapped ? 803 : CITY_BANK_W - region.sourceX)
+                        : (city.swapped ? 869 : region.sourceX);
+                    for (let row = 0; row < region.rows; row++) {
+                        for (let col = 0; col < region.cols; col++) {
+                            if (hash01(1500 + li * 300 + ri * 100 + row * 11 + col) < 0.38) continue;
+                            const wx = region.bank === 'left'
+                                ? city.leftX - (innerDistance - col * 27) * city.scale
+                                : city.rightX + (innerDistance + col * 27) * city.scale;
+                            const wy = top + (138 + row * 46) * city.scale;
+                            if (wx < -10 || wx > W + 10 || wy < -10 || wy > H + 10) continue;
+                            const glowAlpha = windowGlow * city.alpha;
+                            const windowW = Math.max(1, 12 * city.scale);
+                            const windowH = Math.max(1.5, 19 * city.scale);
+                            this.gHorizonLights.fillStyle(0xffc45e, glowAlpha * 0.10);
+                            this.gHorizonLights.fillCircle(
+                                wx + windowW / 2,
+                                wy + windowH / 2,
+                                Math.max(2, 19 * city.scale)
+                            );
+                            this.gHorizonLights.fillStyle(0xffdfa0, glowAlpha * 0.90);
+                            this.gHorizonLights.fillRect(wx, wy, windowW, windowH);
+                        }
                     }
                 }
             }
@@ -976,6 +1180,45 @@ export class Game extends Scene {
                     const lw = (LANE_CENTERS[d - 1] + LANE_CENTERS[d]) / 2 * sc;
                     g.fillRect(cx + lw - dw, y, dw * 2, SCAN);
                 }
+            }
+        }
+
+        // Repeating roadside depth markers sell forward travel while the city
+        // itself stays fixed. They are projected in world space, emerge through
+        // the horizon fog, grow smoothly and pass the camera with no visual reset.
+        const MARKER_SPACING = 245;
+        const markerOffset = ((this.dist % MARKER_SPACING) + MARKER_SPACING) % MARKER_SPACING;
+        for (let zm = MARKER_SPACING - markerOffset; zm < Z_FAR; zm += MARKER_SPACING) {
+            if (zm < 90) continue;
+            for (const side of [-1, 1]) {
+                const p = proj(side * (ROAD_HW + 34), zm);
+                if (p.y < HORIZON_Y + 8 || p.y > H + 45) continue;
+                const fa = fogFade(p.y);
+                if (fa < 0.02) continue;
+
+                const postH = Math.max(3, 34 * p.s);
+                const postW = Math.max(1, 5 * p.s);
+                const capH = Math.max(1, postH * 0.25);
+
+                // A short perspective shadow points back to the vanishing point.
+                this.gCity.fillStyle(0x07150b, fa * 0.20);
+                this.gCity.fillTriangle(
+                    p.x - postW, p.y,
+                    p.x + postW, p.y,
+                    p.x + side * postH * 0.75, p.y + postH * 0.16
+                );
+
+                this.gCity.fillStyle(0xe9eef2, fa * 0.94);
+                this.gCity.fillRect(p.x - postW / 2, p.y - postH, postW, postH);
+                this.gCity.fillStyle(0x25313a, fa * 0.95);
+                this.gCity.fillRect(p.x - postW / 2, p.y - postH, postW, capH);
+                this.gCity.fillStyle(side < 0 ? 0xff3b2f : 0x46b8ff, fa);
+                this.gCity.fillRect(
+                    p.x - postW * 0.36,
+                    p.y - postH + capH * 0.24,
+                    postW * 0.72,
+                    Math.max(1, capH * 0.46)
+                );
             }
         }
 

@@ -19,7 +19,7 @@ const DRIVER_NAMES = [
 ];
 
 const ALL_CARS = [
-    { key: 'playerCar', name: 'EV 3',    unlockKey: null,              scale: 0.23, offY: -80, offX: 0 },
+    { key: 'playerCar', name: 'EV 3',    unlockKey: null,              scale: 0.39, offY: -80, offX: 0 },
     { key: 'modelY',    name: 'EV Y',    unlockKey: 'evspeed_carY',    scale: 0.10, offY: -12, offX: 0 },
     { key: 'evS',       name: 'EV S',    unlockKey: 'evspeed_evS',     scale: 0.14, offY: -18, offX: 0 },
     { key: 'evX',       name: 'EV X',    unlockKey: 'evspeed_evX',     scale: 0.10, offY: -18, offX: 0 },
@@ -115,7 +115,7 @@ export class MPCarSelect extends Scene {
         this.isSingle = data.mode === 'single';
 
         this.cars = buildCarsList();
-        if (this.cars.length === 0) this.cars = [{ key: 'playerCar', name: 'EV 3', unlockKey: null, scale: 0.23, offY: -80, offX: 0, variantKey: 'playerCar', swatch: 0xd8d8d8 }];
+        if (this.cars.length === 0) this.cars = [{ key: 'playerCar', name: 'EV 3', unlockKey: null, scale: 0.39, offY: -80, offX: 0, variantKey: 'playerCar', swatch: 0xd8d8d8 }];
 
         // The carousel contains one entry per model; colors are selected inside its card.
         const lastCar = localStorage.getItem('evspeed_selected_car') || 'playerCar';
@@ -154,6 +154,7 @@ export class MPCarSelect extends Scene {
         const swatchY = CAR_Y + CARD_H / 2 - 43;
         const dotY   = CAR_Y + CARD_H / 2 - 24;
         const sepY   = CAR_Y + CARD_H / 2 - 92;
+        const arrowY = CAR_Y;
 
         if (this.isSingle) {
             const cx = W / 2;
@@ -181,8 +182,9 @@ export class MPCarSelect extends Scene {
             this.drawDots(this.p1Dots, cx, dotY, this.p1Idx);
 
             if (this.cars.length > 1) {
-                this.makeArrow(cx - 68, dotY, '◄', () => this.changeCar(1, -1));
-                this.makeArrow(cx + 68, dotY, '►', () => this.changeCar(1, +1));
+                const singleArrowOffset = CARD_W / 2 + 29;
+                this.makeArrow(cx - singleArrowOffset, arrowY, '◄', () => this.changeCar(1, -1));
+                this.makeArrow(cx + singleArrowOffset, arrowY, '►', () => this.changeCar(1, +1));
             }
         } else {
             const divGfx = this.add.graphics().setDepth(2);
@@ -241,10 +243,10 @@ export class MPCarSelect extends Scene {
             this.drawDots(this.p2Dots, CX2, dotY, this.p2Idx);
 
             if (this.cars.length > 1) {
-                this.makeArrow(CX1 - 58, dotY, '◄', () => this.changeCar(1, -1));
-                this.makeArrow(CX1 + 58, dotY, '►', () => this.changeCar(1, +1));
-                this.makeArrow(CX2 - 58, dotY, '◄', () => this.changeCar(2, -1));
-                this.makeArrow(CX2 + 58, dotY, '►', () => this.changeCar(2, +1));
+                this.makeArrow(CX1 - 65, arrowY, '◄', () => this.changeCar(1, -1));
+                this.makeArrow(CX1 + 65, arrowY, '►', () => this.changeCar(1, +1));
+                this.makeArrow(CX2 - 65, arrowY, '◄', () => this.changeCar(2, -1));
+                this.makeArrow(CX2 + 65, arrowY, '►', () => this.changeCar(2, +1));
             }
         }
 
@@ -366,16 +368,16 @@ export class MPCarSelect extends Scene {
         const draw = (hover) => {
             gfx.clear();
             gfx.fillStyle(hover ? 0x1e2e48 : 0x0e1622, 1);
-            gfx.fillRoundedRect(x - 18, y - 14, 36, 28, 6);
+            gfx.fillRoundedRect(x - 23, y - 18, 46, 36, 8);
             gfx.fillStyle(hover ? 0x3355aa : 0x1a2a55, 1);
-            gfx.fillRoundedRect(x - 18, y - 14, 36, 26, 6);
+            gfx.fillRoundedRect(x - 23, y - 18, 46, 34, 8);
         };
         draw(false);
         this.add.text(x, y - 1, label, {
-            fontFamily: 'Arial Black', fontSize: 13, color: '#7799bb',
+            fontFamily: 'Arial Black', fontSize: 18, color: '#7799bb',
             stroke: '#000000', strokeThickness: 1
         }).setOrigin(0.5).setDepth(5);
-        const zone = this.add.zone(x, y, 36, 28).setInteractive().setDepth(6);
+        const zone = this.add.zone(x, y, 46, 36).setInteractive().setDepth(6);
         zone.on('pointerover', () => draw(true));
         zone.on('pointerout',  () => draw(false));
         zone.on('pointerdown', onClick);
