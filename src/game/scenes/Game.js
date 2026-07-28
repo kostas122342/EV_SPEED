@@ -1213,45 +1213,6 @@ export class Game extends Scene {
             }
         }
 
-        // Repeating roadside depth markers sell forward travel while the city
-        // itself stays fixed. They are projected in world space, emerge through
-        // the horizon fog, grow smoothly and pass the camera with no visual reset.
-        const MARKER_SPACING = 245;
-        const markerOffset = ((this.dist % MARKER_SPACING) + MARKER_SPACING) % MARKER_SPACING;
-        for (let zm = MARKER_SPACING - markerOffset; zm < Z_FAR; zm += MARKER_SPACING) {
-            if (zm < 90) continue;
-            for (const side of [-1, 1]) {
-                const p = proj(side * (ROAD_HW + 34), zm);
-                if (p.y < HORIZON_Y + 8 || p.y > H + 45) continue;
-                const fa = fogFade(p.y);
-                if (fa < 0.02) continue;
-
-                const postH = Math.max(3, 34 * p.s);
-                const postW = Math.max(1, 5 * p.s);
-                const capH = Math.max(1, postH * 0.25);
-
-                // A short perspective shadow points back to the vanishing point.
-                this.gCity.fillStyle(0x07150b, fa * 0.20);
-                this.gCity.fillTriangle(
-                    p.x - postW, p.y,
-                    p.x + postW, p.y,
-                    p.x + side * postH * 0.75, p.y + postH * 0.16
-                );
-
-                this.gCity.fillStyle(0xe9eef2, fa * 0.94);
-                this.gCity.fillRect(p.x - postW / 2, p.y - postH, postW, postH);
-                this.gCity.fillStyle(0x25313a, fa * 0.95);
-                this.gCity.fillRect(p.x - postW / 2, p.y - postH, postW, capH);
-                this.gCity.fillStyle(side < 0 ? 0xff3b2f : 0x46b8ff, fa);
-                this.gCity.fillRect(
-                    p.x - postW * 0.36,
-                    p.y - postH + capH * 0.24,
-                    postW * 0.72,
-                    Math.max(1, capH * 0.46)
-                );
-            }
-        }
-
         // Night overlay — blue tint deepens toward full night
         if (this.wNight > 0) {
             const ovCol = lerpColor(0x000818, 0x00082e, this.wNight);
@@ -1274,10 +1235,10 @@ export class Game extends Scene {
 
             const sides = [{ p: pL, dir: 1 }, { p: pR, dir: -1 }];
             for (const { p, dir } of sides) {
-                const poleH = Math.max(6, 118 * p.s);
-                const poleW = Math.max(0.7, 4.2 * p.s);
-                const armLen = Math.max(3, 34 * p.s);
-                const armDrop = Math.max(0.5, 5.2 * p.s);
+                const poleH = Math.max(9, 165 * p.s);
+                const poleW = Math.max(0.85, 5.4 * p.s);
+                const armLen = Math.max(4.2, 44 * p.s);
+                const armDrop = Math.max(0.7, 6.5 * p.s);
                 const topY = p.y - poleH;
                 const bendX = p.x + dir * armLen * 0.48;
                 const bendY = topY - armDrop * 0.35;
@@ -1287,7 +1248,7 @@ export class Game extends Scene {
 
                 // Small base collar and a tapered, double-stroked steel post.
                 const baseW = Math.max(1.2, poleW * 2.1);
-                const baseH = Math.max(1.2, 5 * p.s);
+                const baseH = Math.max(1.5, 7 * p.s);
                 this.gCity.fillStyle(0x20282d, poleAlpha);
                 this.gCity.fillRect(p.x - baseW / 2, p.y - baseH, baseW, baseH);
 
@@ -1301,8 +1262,8 @@ export class Game extends Scene {
                 this.gCity.lineBetween(bendX, bendY, headX, headY);
 
                 // Slim horizontal luminaire, instead of the old circular head.
-                const headW = Math.max(2.8, 20 * p.s);
-                const headH = Math.max(1.2, 6.2 * p.s);
+                const headW = Math.max(3.5, 25 * p.s);
+                const headH = Math.max(1.5, 7.5 * p.s);
                 this.gCity.fillStyle(0x182126, poleAlpha);
                 this.gCity.fillRoundedRect(
                     headX - headW / 2,
