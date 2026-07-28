@@ -25,11 +25,17 @@ const CITY_BANK_W = 1086;
 const CITY_BANK_H = 671;
 const CITY_LEFT_INNER_GAP = 133;
 const CITY_RIGHT_INNER_GAP = 117;
+const CITY_HILL_REVEAL_DISTANCE = 760;
 
 
 function roadHillLift(wz) {
     const t = smoothstep((wz - 520) / (Z_FAR - 520));
     return 34 * t;
+}
+
+function hillCrestY(screenX) {
+    const edgeT = Math.min(1, Math.abs(screenX - W / 2) / (W / 2));
+    return HORIZON_Y + 22 + 9 * Math.pow(edgeT, 1.6);
 }
 
 function proj(wx, wz) {
@@ -212,6 +218,7 @@ export class Game extends Scene {
                 .setDepth(0.5);
             return { left, right, index: i, variant };
         });
+        this.gHill  = this.add.graphics().setDepth(0.9);
         this.gRoad  = this.add.graphics().setDepth(1);
         this.gFog   = this.add.graphics().setDepth(1.45);
         this.gCity  = this.add.graphics().setDepth(1.7);
@@ -902,6 +909,7 @@ export class Game extends Scene {
 
         this.gBg.clear();
         this.gSkyFx.clear();
+        this.gHill.clear();
         this.gRoad.clear();
         this.gFog.clear();
         this.gCity.clear();
@@ -972,10 +980,9 @@ export class Game extends Scene {
         const cityTint = lerpColor(0xffffff, this.wSky, 0.10);
         const cityAlpha = 1 - ni * 0.05;
 
-        // Perspective city banks. Left and right halves travel independently
-        // away from the vanishing point as they approach the camera. Each bank
-        // stays at or below native scale, then recycles only after its visible
-        // content has left the side of the screen.
+        // Perspective city banks. They begin fully hidden on the far side of
+        // the uphill crest, then rise into view while continuing to grow and
+        // spread away from the vanishing point as they approach the camera.
         const renderedCityLayers = [];
         const citySpacing = CITY_LAYER_SPAN / CITY_LAYER_COUNT;
         const cityTravel = ((this.dist * CITY_LAYER_SCROLL) % CITY_LAYER_SPAN + CITY_LAYER_SPAN) % CITY_LAYER_SPAN;
@@ -988,7 +995,13 @@ export class Game extends Scene {
             const spread = (ROAD_HW + layer.variant.side) * p.s;
             const leftX = W / 2 - spread;
             const rightX = W / 2 + spread;
-            const bankBottom = p.y + layer.variant.ground * p.s;
+            const travelledFromFar = CITY_LAYER_FAR_Z - z;
+            const hillReveal = smoothstep(travelledFromFar / CITY_HILL_REVEAL_DISTANCE);
+            const crestY = hillCrestY(leftX);
+            const rootBurial = Math.max(2, 10 * bankScale);
+            const projectedGround = p.y + layer.variant.ground * p.s + rootBurial;
+            const groundY = Math.max(crestY + rootBurial, projectedGround);
+            const bankBottom = groundY + (1 - hillReveal) * bankH;
             const farFade = smoothstep((CITY_LAYER_FAR_Z - z) / 190);
             const nearFade = smoothstep((z - CITY_LAYER_NEAR_Z) / 120);
             const atmosphere = 0.58 + 0.42 * smoothstep((CITY_LAYER_FAR_Z - z) / 950);
@@ -1023,9 +1036,25 @@ export class Game extends Scene {
                     alpha,
                     swapped: layer.variant.swapped,
                     z,
+                    groundY,
+                    reveal: hillReveal,
                 });
             }
         }
+
+        // Foreground crest occludes the unrevealed part of every city bank.
+        // Its gentle crown follows the uphill road and the global horizon fog
+        // softens the seam, so buildings appear to emerge from behind terrain.
+        this.gHill.fillStyle(this.wGrass, 1);
+        this.gHill.beginPath();
+        this.gHill.moveTo(0, hillCrestY(0));
+        for (let x = 16; x <= W; x += 16) {
+            this.gHill.lineTo(x, hillCrestY(x));
+        }
+        this.gHill.lineTo(W, H);
+        this.gHill.lineTo(0, H);
+        this.gHill.closePath();
+        this.gHill.fillPath();
 
         // A small extra haze bank only at the roots of distant tree rows.
         // It blends them into the raised terrain without fogging the road centre
@@ -1033,7 +1062,7 @@ export class Game extends Scene {
         for (const city of renderedCityLayers) {
             if (city.z < 1500) continue;
             const distanceFog = smoothstep((city.z - 1500) / 700);
-            const fogAlpha = 0.16 * distanceFog * city.alpha;
+            const fogAlpha = 0.16 * distanceFog * city.alpha * city.reveal;
             if (fogAlpha < 0.004) continue;
 
             const leftGap = city.swapped ? CITY_RIGHT_INNER_GAP : CITY_LEFT_INNER_GAP;
@@ -1046,20 +1075,20 @@ export class Game extends Scene {
                 fogColor, fogColor, fogColor, fogColor,
                 0, 0, fogAlpha, fogAlpha
             );
-            this.gFog.fillRect(0, city.bottom - fogHalfH, leftEnd, fogHalfH);
-            this.gFog.fillRect(rightStart, city.bottom - fogHalfH, W - rightStart, fogHalfH);
+            this.gFog.fillRect(0, city.groundY - fogHalfH, leftEnd, fogHalfH);
+            this.gFog.fillRect(rightStart, city.groundY - fogHalfH, W - rightStart, fogHalfH);
             this.gFog.fillGradientStyle(
                 fogColor, fogColor, fogColor, fogColor,
                 fogAlpha, fogAlpha, 0, 0
             );
-            this.gFog.fillRect(0, city.bottom, leftEnd, fogHalfH);
-            this.gFog.fillRect(rightStart, city.bottom, W - rightStart, fogHalfH);
+            this.gFog.fillRect(0, city.groundY, leftEnd, fogHalfH);
+            this.gFog.fillRect(rightStart, city.groundY, W - rightStart, fogHalfH);
 
             // Rounded inner caps prevent a visible vertical edge where the
             // localized root fog meets the clear road opening.
             this.gFog.fillStyle(fogColor, fogAlpha * 0.55);
-            this.gFog.fillEllipse(leftEnd, city.bottom, fogHalfH * 2.4, fogHalfH * 1.6);
-            this.gFog.fillEllipse(rightStart, city.bottom, fogHalfH * 2.4, fogHalfH * 1.6);
+            this.gFog.fillEllipse(leftEnd, city.groundY, fogHalfH * 2.4, fogHalfH * 1.6);
+            this.gFog.fillEllipse(rightStart, city.groundY, fogHalfH * 2.4, fogHalfH * 1.6);
         }
 
         // Emissive window layer remains visible above the global night tint.
@@ -1090,6 +1119,7 @@ export class Game extends Scene {
                             const glowAlpha = windowGlow * city.alpha;
                             const windowW = Math.max(1, 12 * city.scale);
                             const windowH = Math.max(1.5, 19 * city.scale);
+                            if (wy + windowH >= hillCrestY(wx)) continue;
                             this.gHorizonLights.fillStyle(0xffc45e, glowAlpha * 0.10);
                             this.gHorizonLights.fillCircle(
                                 wx + windowW / 2,
