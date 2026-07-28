@@ -10,7 +10,9 @@ export class Menu extends Scene {
         this.load.image('playerCar', 'assets/CarFinal.png');
         this.load.image('energyLogo', 'assets/En4.png');
         this.load.audio('bgMusic',  'assets/EvSong.mp3');
-        this.load.image('infoPanel', 'assets/info.png');
+        this.load.image('infoClear',  'assets/CLEAR.png');
+        this.load.image('infoBomb',   'assets/bomb.png');
+        this.load.image('infoShield', 'assets/shieldIcon.png');
     }
 
     create() {
@@ -277,23 +279,209 @@ export class Menu extends Scene {
     }
 
     showInfoOverlay() {
-        const ov = this.add.graphics().setDepth(20);
-        ov.fillStyle(0x000000, 0.78);
-        ov.fillRect(0, 0, W, H);
+        if (this.infoOverlay) return;
 
-        const img = this.add.image(W / 2, H / 2, 'infoPanel')
-            .setDepth(21).setOrigin(0.5);
-        const scl = Math.min((W - 40) / img.width, (H - 100) / img.height);
-        img.setScale(scl);
+        const overlay = this.add.container(0, 0).setDepth(20).setAlpha(0);
+        this.infoOverlay = overlay;
 
-        const closeTxt = this.add.text(W / 2, H - 38, 'TAP TO CLOSE', {
-            fontFamily: 'Arial Black', fontSize: 13, color: '#aaaaaa',
-            stroke: '#000000', strokeThickness: 2
-        }).setOrigin(0.5).setDepth(21);
+        const shade = this.add.graphics();
+        shade.fillStyle(0x000000, 0.88);
+        shade.fillRect(0, 0, W, H);
+        overlay.add(shade);
 
-        const closeZone = this.add.zone(W / 2, H / 2, W, H).setInteractive().setDepth(22);
-        closeZone.once('pointerdown', () => {
-            ov.destroy(); img.destroy(); closeTxt.destroy(); closeZone.destroy();
+        // Absorb input so the menu buttons behind the modal cannot be pressed.
+        const inputBlocker = this.add.zone(W / 2, H / 2, W, H)
+            .setInteractive()
+            .setDepth(1);
+        overlay.add(inputBlocker);
+
+        const chrome = this.add.graphics().setDepth(2);
+
+        // Main panel and header.
+        chrome.fillStyle(0x000000, 0.55);
+        chrome.fillRoundedRect(12, 16, 456, 696, 22);
+        chrome.fillStyle(0x050d1b, 0.99);
+        chrome.fillRoundedRect(16, 12, 448, 696, 22);
+        chrome.lineStyle(2, 0x20cfff, 0.88);
+        chrome.strokeRoundedRect(16, 12, 448, 696, 22);
+        chrome.fillStyle(0x09233d, 1);
+        chrome.fillRoundedRect(20, 16, 440, 64, { tl: 18, tr: 18, bl: 5, br: 5 });
+        chrome.lineStyle(1, 0x5ce8ff, 0.58);
+        chrome.lineBetween(28, 80, 452, 80);
+
+        // Controls card.
+        chrome.fillStyle(0x08182c, 1);
+        chrome.fillRoundedRect(34, 94, 412, 108, 14);
+        chrome.lineStyle(1.5, 0x1d5378, 0.9);
+        chrome.strokeRoundedRect(34, 94, 412, 108, 14);
+        chrome.fillStyle(0x020912, 0.92);
+        chrome.fillRoundedRect(48, 107, 88, 82, 10);
+        chrome.lineStyle(1, 0x20cfff, 0.42);
+        chrome.strokeRoundedRect(48, 107, 88, 82, 10);
+
+        // A compact road/car diagram for the lane-change gesture.
+        chrome.lineStyle(2, 0xffffff, 0.35);
+        chrome.lineBetween(76, 112, 76, 184);
+        chrome.lineBetween(108, 112, 108, 184);
+        chrome.fillStyle(0xe9f7ff, 1);
+        chrome.fillRoundedRect(84, 127, 16, 42, 5);
+        chrome.fillStyle(0x142338, 1);
+        chrome.fillRoundedRect(87, 133, 10, 13, 3);
+        chrome.fillRoundedRect(87, 151, 10, 10, 3);
+        chrome.lineStyle(3, 0x20cfff, 1);
+        chrome.lineBetween(81, 148, 59, 148);
+        chrome.lineBetween(103, 148, 125, 148);
+        chrome.lineBetween(59, 148, 66, 141);
+        chrome.lineBetween(59, 148, 66, 155);
+        chrome.lineBetween(125, 148, 118, 141);
+        chrome.lineBetween(125, 148, 118, 155);
+
+        const rows = [
+            {
+                top: 252, center: 299, color: 0x20cfff,
+                title: 'CLR',
+                description: 'Clears obstacles from your current lane.',
+                texture: 'infoClear', scale: 0.15
+            },
+            {
+                top: 360, center: 407, color: 0xff9d2e,
+                title: 'BOMB',
+                description: 'Destroys every obstacle on the road.',
+                texture: 'infoBomb', scale: 0.25, iconOffsetY: 3
+            },
+            {
+                top: 468, center: 515, color: 0x70e7ff,
+                title: 'SHIELD',
+                description: 'Protects you from collisions for 4 seconds.',
+                texture: 'infoShield', scale: 0.047
+            }
+        ];
+
+        rows.forEach((row) => {
+            chrome.fillStyle(0x08182c, 1);
+            chrome.fillRoundedRect(34, row.top, 412, 94, 14);
+            chrome.lineStyle(1.25, row.color, 0.42);
+            chrome.strokeRoundedRect(34, row.top, 412, 94, 14);
+            chrome.fillStyle(row.color, 0.9);
+            chrome.fillRoundedRect(34, row.top + 13, 4, 68, 2);
+            chrome.fillStyle(row.color, 0.10);
+            chrome.fillCircle(88, row.center, 35);
+            chrome.lineStyle(1.25, row.color, 0.38);
+            chrome.strokeCircle(88, row.center, 35);
+        });
+        overlay.add(chrome);
+
+        const title = this.add.text(W / 2, 41, 'HOW TO PLAY', {
+            fontFamily: 'Arial Black', fontSize: 27, color: '#ffffff',
+            stroke: '#00111f', strokeThickness: 4
+        }).setOrigin(0.5).setDepth(3);
+        const subtitle = this.add.text(W / 2, 68, 'EV SPEED  •  QUICK GUIDE', {
+            fontFamily: 'Arial', fontSize: 11, color: '#67ddff',
+            letterSpacing: 1.5
+        }).setOrigin(0.5).setDepth(3);
+
+        const controlsTitle = this.add.text(154, 121, 'SWIPE LEFT / RIGHT', {
+            fontFamily: 'Arial Black', fontSize: 18, color: '#ffffff'
+        }).setOrigin(0, 0.5).setDepth(3);
+        const controlsDesc = this.add.text(154, 153, 'Change lanes and dodge traffic.', {
+            fontFamily: 'Arial', fontSize: 15, color: '#b9d0e6',
+            wordWrap: { width: 270 }
+        }).setOrigin(0, 0.5).setDepth(3);
+        const controlsHint = this.add.text(154, 178, 'Swipe or use the arrow keys.', {
+            fontFamily: 'Arial', fontSize: 12, color: '#5fcfee'
+        }).setOrigin(0, 0.5).setDepth(3);
+
+        const powerTitle = this.add.text(34, 229, 'POWER-UPS', {
+            fontFamily: 'Arial Black', fontSize: 17, color: '#ffffff',
+            stroke: '#00111f', strokeThickness: 3
+        }).setOrigin(0, 0.5).setDepth(3);
+        const powerLine = this.add.graphics().setDepth(3);
+        powerLine.lineStyle(2, 0x20cfff, 0.55);
+        powerLine.lineBetween(154, 229, 446, 229);
+
+        overlay.add([
+            title, subtitle, controlsTitle, controlsDesc, controlsHint,
+            powerTitle, powerLine
+        ]);
+
+        rows.forEach((row) => {
+            const icon = this.add.image(88, row.center + (row.iconOffsetY || 0), row.texture)
+                .setScale(row.scale)
+                .setDepth(3);
+            const rowTitle = this.add.text(140, row.center - 17, row.title, {
+                fontFamily: 'Arial Black', fontSize: 20,
+                color: `#${row.color.toString(16).padStart(6, '0')}`,
+                stroke: '#00111f', strokeThickness: 3
+            }).setOrigin(0, 0.5).setDepth(3);
+            const rowDesc = this.add.text(140, row.center + 15, row.description, {
+                fontFamily: 'Arial', fontSize: 14, color: '#c9d9e8',
+                wordWrap: { width: 286 }
+            }).setOrigin(0, 0.5).setDepth(3);
+            overlay.add([icon, rowTitle, rowDesc]);
+        });
+
+        const button = this.add.graphics().setDepth(3);
+        const drawButton = (alpha = 1) => {
+            button.clear();
+            button.fillStyle(0x006799, alpha);
+            button.fillRoundedRect(113, 615, 254, 51, 15);
+            button.fillStyle(0x00aada, alpha);
+            button.fillRoundedRect(116, 612, 248, 49, 14);
+            button.fillStyle(0x37dfff, 0.30 * alpha);
+            button.fillRoundedRect(119, 615, 242, 20, { tl: 11, tr: 11, bl: 2, br: 2 });
+            button.lineStyle(1.5, 0x8defff, alpha);
+            button.strokeRoundedRect(116, 612, 248, 49, 14);
+        };
+        drawButton();
+        const buttonText = this.add.text(W / 2, 636, 'GOT IT', {
+            fontFamily: 'Arial Black', fontSize: 20, color: '#ffffff',
+            stroke: '#003044', strokeThickness: 4
+        }).setOrigin(0.5).setDepth(4);
+        const footer = this.add.text(W / 2, 686, 'Collect power-ups. Survive longer. Go faster.', {
+            fontFamily: 'Arial', fontSize: 11, color: '#55758e'
+        }).setOrigin(0.5).setDepth(3);
+        overlay.add([button, buttonText, footer]);
+
+        const closeOverlay = () => {
+            if (this.infoOverlay !== overlay) return;
+            this.tweens.add({
+                targets: overlay,
+                alpha: 0,
+                duration: 120,
+                onComplete: () => {
+                    overlay.destroy(true);
+                    if (this.infoOverlay === overlay) this.infoOverlay = null;
+                }
+            });
+        };
+
+        const closeIcon = this.add.graphics().setDepth(4);
+        closeIcon.fillStyle(0x020913, 0.88);
+        closeIcon.fillCircle(435, 45, 15);
+        closeIcon.lineStyle(1.5, 0x70e7ff, 0.75);
+        closeIcon.strokeCircle(435, 45, 15);
+        closeIcon.lineStyle(2, 0xffffff, 0.9);
+        closeIcon.lineBetween(429, 39, 441, 51);
+        closeIcon.lineBetween(441, 39, 429, 51);
+
+        const closeZone = this.add.zone(435, 45, 42, 42)
+            .setInteractive({ useHandCursor: true })
+            .setDepth(5)
+            .once('pointerdown', closeOverlay);
+        const buttonZone = this.add.zone(W / 2, 636, 254, 54)
+            .setInteractive({ useHandCursor: true })
+            .setDepth(5)
+            .on('pointerover', () => drawButton(0.82))
+            .on('pointerout', () => drawButton(1))
+            .once('pointerdown', closeOverlay);
+        overlay.add([closeIcon, closeZone, buttonZone]);
+        overlay.sort('depth');
+
+        this.tweens.add({
+            targets: overlay,
+            alpha: 1,
+            duration: 180,
+            ease: 'Quad.easeOut'
         });
     }
 }
