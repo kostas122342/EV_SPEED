@@ -184,6 +184,7 @@ export class Game extends Scene {
         // Continuous solar day/night cycle. Starting in late morning gives the
         // player time to see the sun before the first sunset.
         this.dayCycleT = 0.10;
+        this.skyDrift = 0;
         const initialDay = sampleDayCycle(this.dayCycleT);
         this.wSky     = initialDay.sky;
         this.wGrass   = initialDay.grass;
@@ -773,6 +774,7 @@ export class Game extends Scene {
 
         // Continuous sunset → night → sunrise cycle.
         this.dayCycleT = (this.dayCycleT + dt / DAY_CYCLE_SECONDS) % 1;
+        this.skyDrift = (this.skyDrift + dt * 2.8) % (W + 240);
         const day = sampleDayCycle(this.dayCycleT);
         this.wSky     = day.sky;
         this.wGrass   = day.grass;
@@ -925,6 +927,64 @@ export class Game extends Scene {
         // Sky
         this.gBg.fillStyle(this.wSky, 1);
         this.gBg.fillRect(0, 0, W, HORIZON_Y);
+
+        // A subtle vertical atmosphere keeps every phase from reading as one
+        // flat solid color. The warm lower band becomes strongest only while
+        // the sun is close to the horizon.
+        const sunNearHorizon = this.sunAlpha
+            * smoothstep((this.sunY - 82) / 78)
+            * (1 - smoothstep((this.wNight - 0.72) / 0.22));
+        const upperSkyTint = lerpColor(
+            this.wSky,
+            this.wNight > 0.45 ? 0x06102b : 0x254c78,
+            0.30
+        );
+        this.gSkyFx.fillGradientStyle(
+            upperSkyTint, upperSkyTint, this.wSky, this.wSky,
+            0.20, 0.20, 0, 0
+        );
+        this.gSkyFx.fillRect(0, 0, W, HORIZON_Y);
+
+        if (sunNearHorizon > 0.002) {
+            const horizonWarmth = lerpColor(0xffd19a, this.sunColor, 0.34);
+            this.gSkyFx.fillGradientStyle(
+                horizonWarmth, horizonWarmth, horizonWarmth, horizonWarmth,
+                0, 0, sunNearHorizon * 0.18, sunNearHorizon * 0.18
+            );
+            this.gSkyFx.fillRect(0, 62, W, HORIZON_Y - 62);
+        }
+
+        // Very thin high-altitude cloud bands drift independently of the road.
+        // Their low opacity adds texture without competing with the skyline.
+        const cloudAlpha = (0.024 + sunNearHorizon * 0.034) * (1 - this.wNight * 0.88);
+        if (cloudAlpha > 0.002) {
+            const cloudSpan = W + 220;
+            const cloudLight = lerpColor(0xeaf5ff, this.sunColor, sunNearHorizon * 0.55);
+            const cloudShadow = lerpColor(this.wSky, 0x35415f, 0.34 + sunNearHorizon * 0.24);
+            const cloudBands = [
+                { base: 55,  y: 48,  w: 132, h: 8,  speed: 0.58 },
+                { base: 286, y: 91,  w: 178, h: 10, speed: 0.36 },
+                { base: 505, y: 130, w: 116, h: 7,  speed: 0.76 },
+            ];
+            for (const cloud of cloudBands) {
+                const x = -110 + ((cloud.base + this.skyDrift * cloud.speed) % cloudSpan);
+                this.gSkyFx.fillStyle(cloudShadow, cloudAlpha * 0.52);
+                this.gSkyFx.fillEllipse(
+                    x + cloud.w * 0.08,
+                    cloud.y + 2,
+                    cloud.w * 0.88,
+                    cloud.h * 0.62
+                );
+                this.gSkyFx.fillStyle(cloudLight, cloudAlpha);
+                this.gSkyFx.fillEllipse(x, cloud.y, cloud.w, cloud.h);
+                this.gSkyFx.fillEllipse(
+                    x - cloud.w * 0.30,
+                    cloud.y + 1,
+                    cloud.w * 0.48,
+                    cloud.h * 0.68
+                );
+            }
+        }
 
         // Stars fade in only after dusk. Their deterministic positions avoid
         // flicker while a tiny phase-based pulse keeps the night sky alive.
