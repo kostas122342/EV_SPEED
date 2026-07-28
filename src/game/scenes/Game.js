@@ -8,6 +8,7 @@ const ROAD_HW = 280;
 const LANE_CENTERS = [-ROAD_HW * 0.67, 0, ROAD_HW * 0.67];
 const DASH_LEN = 80, DASH_GAP = 80, DASH_P = DASH_LEN + DASH_GAP;
 const SCAN = 3;
+const SHIELD_DURATION_SECONDS = 4;
 const CITY_LAYER_VARIANTS = [
     { swapped: false, size: 1.00, side: 40,  ground: 0 },
     { swapped: true,  size: 0.88, side: 88,  ground: 8 },
@@ -1512,7 +1513,9 @@ export class Game extends Scene {
         this.shieldGfx.strokeCircle(this.px, shieldY, radius);
         this.shieldGfx.lineStyle(2, 0xffffff, 0.65);
         this.shieldGfx.strokeCircle(this.px, shieldY, radius - 7);
-        this.shieldTimeTxt.setText(`${this.shieldT.toFixed(1)}s`);
+        this.shieldTimeTxt
+            .setPosition(this.px, shieldY - radius + 15)
+            .setText(`${this.shieldT.toFixed(1)}s`);
     }
 
     updatePowerupBtns() {
@@ -1597,7 +1600,7 @@ export class Game extends Scene {
         if (this.powerups.shield <= 0 || this.over || !this.started) return;
         this.powerups.shield--;
         localStorage.setItem('evspeed_pu_shield', this.powerups.shield);
-        this.shieldT = 12;
+        this.shieldT = SHIELD_DURATION_SECONDS;
         this.updatePowerupBtns();
     }
 

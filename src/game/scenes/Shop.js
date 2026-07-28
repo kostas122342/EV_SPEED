@@ -34,7 +34,7 @@ const SHOP_CARS = [
 const POWER_UPS = [
     { key: 'clear', name: 'CLR',  icon: 'shopClear', price: 0, storeKey: 'evspeed_pu_clear', desc: 'Destroys lane obstacles',  iconScale: 0.20, iconOffY: 0 },
     { key: 'bomb',  name: 'BOMB', icon: 'shopBomb',  price: 0, storeKey: 'evspeed_pu_bomb',  desc: 'Destroys all obstacles',   iconScale: 0.28, iconOffY: 6 },
-    { key: 'shield', name: 'SHIELD', icon: 'shieldIcon', price: 0, storeKey: 'evspeed_pu_shield', desc: '12s collision protection', iconScale: 0.07, iconOffY: 0 },
+    { key: 'shield', name: 'SHIELD', icon: 'shieldIcon', price: 0, storeKey: 'evspeed_pu_shield', desc: '4s collision protection', iconScale: 0.07, iconOffY: 0 },
 ];
 
 const POSITIONS = [
