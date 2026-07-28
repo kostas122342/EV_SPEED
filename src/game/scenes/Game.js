@@ -221,7 +221,9 @@ export class Game extends Scene {
         this.gHill  = this.add.graphics().setDepth(0.9);
         this.gRoad  = this.add.graphics().setDepth(1);
         this.gFog   = this.add.graphics().setDepth(1.45);
-        this.gCity  = this.add.graphics().setDepth(1.7);
+        // Lamp structures sit just above roadside vegetation; their separate
+        // lateral corridor below prevents incorrect perspective intersections.
+        this.gCity  = this.add.graphics().setDepth(2.15);
         this.gEnv   = this.add.graphics().setDepth(2);
         // Keep the night wash above every moving world object so cars and
         // pickups do not suddenly brighten as their perspective depth changes.
@@ -347,7 +349,9 @@ export class Game extends Scene {
                     this.treePool.push(ns);
                     return ns;
                 };
-                const ox = ROAD_HW + 60 + rnd(0, 100);
+                // Keep vegetation outside the lamp corridor so foliage never
+                // grows through a pole or its inward-facing luminaire.
+                const ox = ROAD_HW + 155 + rnd(0, 80);
                 const is = Math.random() < 0.3;
                 this.trees.push({ z: Z_FAR, s: -1, ox, isStone: is, sprite: getSprite() });
                 this.trees.push({ z: Z_FAR, s:  1, ox, isStone: is, sprite: getSprite() });
