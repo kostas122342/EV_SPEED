@@ -1259,39 +1259,98 @@ export class Game extends Scene {
             this.gNight.fillRect(0, 0, W, H);
         }
 
-        // Roadside lamp posts (both sides, scroll with road)
-        const lampFade = Math.max(0, (this.wNight - 0.2) / 0.35);
-        if (lampFade > 0) {
-            const LAMP_SPACING = 380;
-            const baseZ = ((this.dist % LAMP_SPACING) + LAMP_SPACING) % LAMP_SPACING;
-            for (let zl = baseZ + 80; zl < Z_FAR; zl += LAMP_SPACING) {
-                const pL = proj(-ROAD_HW - 20, zl);
-                const pR = proj( ROAD_HW + 20, zl);
-                if (pL.y < HORIZON_Y || pL.y > H + 60) continue;
-                const lfa = lampFade;
-                const sides = [{ p: pL, dir: 1 }, { p: pR, dir: -1 }];
-                for (const { p, dir } of sides) {
-                    const th = Math.max(5, 78 * p.s);
-                    const tw = Math.max(1.5, 6 * p.s);
-                    const lr = Math.max(2.5, 9 * p.s);
-                    // Post
-                    this.gCity.fillStyle(0x5566aa, lfa);
-                    this.gCity.fillRect(p.x - tw / 2, p.y - th, tw, th);
-                    // Arm toward road
-                    this.gCity.fillRect(p.x - tw / 2, p.y - th, tw * 3.5 * dir, tw * 0.8);
-                    // Lamp head
-                    this.gCity.fillStyle(0xeef5ff, lfa);
-                    this.gCity.fillCircle(p.x + tw * 1.75 * dir, p.y - th, lr);
-                    // Glow halo
-                    this.gCity.fillStyle(0xbbddff, lfa * 0.25);
-                    this.gCity.fillCircle(p.x + tw * 1.75 * dir, p.y - th, lr * 2.8);
-                    // Light cone downward
-                    if (lampFade > 0.4) {
-                        const coneA = lfa * (lampFade - 0.4) * 0.22;
-                        const lx = p.x + tw * 1.75 * dir, ly = p.y - th;
-                        this.gCity.fillStyle(0xaaccff, coneA);
-                        this.gCity.fillTriangle(lx, ly + lr, lx - lr * 2.5 * dir, ly + lr * 6, lx + lr * 2.5 * dir, ly + lr * 6);
-                    }
+        // Realistic roadside lamps. The metal structure and ground light pool
+        // stay inside the world lighting; only the warm LED bloom is emissive.
+        const lampPower = smoothstep((this.wNight - 0.18) / 0.48);
+        const LAMP_SPACING = 430;
+        const lampTravel = ((this.dist % LAMP_SPACING) + LAMP_SPACING) % LAMP_SPACING;
+        for (let zl = 105 + LAMP_SPACING - lampTravel; zl < Z_FAR; zl += LAMP_SPACING) {
+            const pL = proj(-ROAD_HW - 24, zl);
+            const pR = proj( ROAD_HW + 24, zl);
+            if (pL.y < HORIZON_Y + 4 || pL.y > H + 65) continue;
+
+            const visibility = fogFade(pL.y);
+            if (visibility < 0.015) continue;
+
+            const sides = [{ p: pL, dir: 1 }, { p: pR, dir: -1 }];
+            for (const { p, dir } of sides) {
+                const poleH = Math.max(5, 102 * p.s);
+                const poleW = Math.max(0.65, 3.6 * p.s);
+                const armLen = Math.max(2.6, 29 * p.s);
+                const armDrop = Math.max(0.45, 4.5 * p.s);
+                const topY = p.y - poleH;
+                const bendX = p.x + dir * armLen * 0.48;
+                const bendY = topY - armDrop * 0.35;
+                const headX = p.x + dir * armLen;
+                const headY = topY + armDrop;
+                const poleAlpha = visibility * (0.72 + this.wNight * 0.18);
+
+                // Small base collar and a tapered, double-stroked steel post.
+                const baseW = Math.max(1.2, poleW * 2.1);
+                const baseH = Math.max(1.2, 5 * p.s);
+                this.gCity.fillStyle(0x20282d, poleAlpha);
+                this.gCity.fillRect(p.x - baseW / 2, p.y - baseH, baseW, baseH);
+
+                this.gCity.lineStyle(poleW + 0.8, 0x11181d, poleAlpha * 0.95);
+                this.gCity.lineBetween(p.x, p.y - baseH, p.x, topY);
+                this.gCity.lineBetween(p.x, topY, bendX, bendY);
+                this.gCity.lineBetween(bendX, bendY, headX, headY);
+                this.gCity.lineStyle(poleW, 0x66737b, poleAlpha);
+                this.gCity.lineBetween(p.x, p.y - baseH, p.x, topY);
+                this.gCity.lineBetween(p.x, topY, bendX, bendY);
+                this.gCity.lineBetween(bendX, bendY, headX, headY);
+
+                // Slim horizontal luminaire, instead of the old circular head.
+                const headW = Math.max(2.5, 17 * p.s);
+                const headH = Math.max(1.1, 5.2 * p.s);
+                this.gCity.fillStyle(0x182126, poleAlpha);
+                this.gCity.fillRoundedRect(
+                    headX - headW / 2,
+                    headY - headH / 2,
+                    headW,
+                    headH,
+                    Math.min(2, headH / 2)
+                );
+
+                const lightAlpha = lampPower * visibility;
+                if (lightAlpha < 0.01) continue;
+
+                // Restrained amber bloom with a bright LED strip.
+                this.gHorizonLights.fillStyle(0xffc76a, lightAlpha * 0.035);
+                this.gHorizonLights.fillEllipse(
+                    headX,
+                    headY + headH * 0.35,
+                    Math.max(4.5, 43 * p.s),
+                    Math.max(2.8, 25 * p.s)
+                );
+                this.gHorizonLights.fillStyle(0xffd990, lightAlpha * 0.10);
+                this.gHorizonLights.fillEllipse(
+                    headX,
+                    headY + headH * 0.35,
+                    Math.max(3, 24 * p.s),
+                    Math.max(1.8, 12 * p.s)
+                );
+                this.gHorizonLights.fillStyle(0xffe4a8, lightAlpha * 0.94);
+                this.gHorizonLights.fillRoundedRect(
+                    headX - headW * 0.34,
+                    headY,
+                    headW * 0.68,
+                    Math.max(0.8, headH * 0.36),
+                    Math.min(1.5, headH * 0.18)
+                );
+
+                // A faint pool on the verge/road edge reads as illumination
+                // without the opaque triangular beams used previously.
+                if (p.y > HORIZON_Y + 34) {
+                    const poolW = Math.max(8, 76 * p.s);
+                    const poolH = Math.max(2.5, 20 * p.s);
+                    this.gCity.fillStyle(0xffd27d, lightAlpha * 0.10);
+                    this.gCity.fillEllipse(
+                        p.x + dir * poolW * 0.16,
+                        p.y + poolH * 0.18,
+                        poolW,
+                        poolH
+                    );
                 }
             }
         }
@@ -1313,43 +1372,20 @@ export class Game extends Scene {
                 this.gEnv.fillCircle(p.x - br * 0.35, p.y - br * 0.85, br * 0.62);
                 continue;
             }
-            const lampFade = Math.max(0, (ni - 0.2) / 0.4);
-            if (lampFade < 1) {
-                const treeFa = fa * (1 - lampFade);
-                const th = Math.max(9, 95 * p.s);
-                const tw = Math.max(2, 10 * p.s);
-                const tr = Math.max(6, 40 * p.s);
-                const foliageCY = p.y - th * 0.58;
-                const trunkStart = foliageCY + tr;
-                if (trunkStart < p.y) {
-                    this.gEnv.fillStyle(lerpColor(0x5a3e1e, 0x1a0e08, ni), treeFa);
-                    this.gEnv.fillRect(p.x - tw / 2, trunkStart, tw, p.y - trunkStart);
-                }
-                this.gEnv.fillStyle(lerpColor(0x2d6e1a, 0x0a1a06, ni), treeFa);
-                this.gEnv.fillCircle(p.x, foliageCY, tr);
-                this.gEnv.fillStyle(lerpColor(0x3d8a25, 0x0e2208, ni), treeFa * 0.75);
-                this.gEnv.fillCircle(p.x - tr * 0.3, foliageCY - tr * 0.2, tr * 0.72);
+            const treeFa = fa;
+            const th = Math.max(9, 95 * p.s);
+            const tw = Math.max(2, 10 * p.s);
+            const tr = Math.max(6, 40 * p.s);
+            const foliageCY = p.y - th * 0.58;
+            const trunkStart = foliageCY + tr;
+            if (trunkStart < p.y) {
+                this.gEnv.fillStyle(lerpColor(0x5a3e1e, 0x1a0e08, ni), treeFa);
+                this.gEnv.fillRect(p.x - tw / 2, trunkStart, tw, p.y - trunkStart);
             }
-            if (lampFade > 0) {
-                const lfa = fa * lampFade;
-                const th = Math.max(6, 80 * p.s);
-                const tw = Math.max(2, 7 * p.s);
-                const lr = Math.max(3, 10 * p.s);
-                this.gEnv.fillStyle(0x7788aa, lfa);
-                this.gEnv.fillRect(p.x - tw / 2, p.y - th, tw, th);
-                this.gEnv.fillRect(p.x - tw / 2, p.y - th, tw * 3, tw);
-                this.gEnv.fillStyle(0xfff0cc, lfa);
-                this.gEnv.fillCircle(p.x + tw * 1.5, p.y - th, lr);
-                if (lampFade > 0.3) {
-                    const coneA = lfa * (lampFade - 0.3) * 0.35;
-                    this.gEnv.fillStyle(0xfff0aa, coneA);
-                    this.gEnv.fillTriangle(
-                        p.x + tw * 1.5, p.y - th + lr,
-                        p.x + tw * 1.5 - lr * 3, p.y - th + lr * 5,
-                        p.x + tw * 1.5 + lr * 3, p.y - th + lr * 5
-                    );
-                }
-            }
+            this.gEnv.fillStyle(lerpColor(0x2d6e1a, 0x0a1a06, ni), treeFa);
+            this.gEnv.fillCircle(p.x, foliageCY, tr);
+            this.gEnv.fillStyle(lerpColor(0x3d8a25, 0x0e2208, ni), treeFa * 0.75);
+            this.gEnv.fillCircle(p.x - tr * 0.3, foliageCY - tr * 0.2, tr * 0.72);
         }
 
         // Enemy cars
