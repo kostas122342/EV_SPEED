@@ -1277,21 +1277,21 @@ export class Game extends Scene {
                 if (lightAlpha < 0.01) continue;
 
                 // Restrained amber bloom with a bright LED strip.
-                this.gHorizonLights.fillStyle(0xffc76a, lightAlpha * 0.05);
+                this.gHorizonLights.fillStyle(0xffc76a, lightAlpha * 0.07);
                 this.gHorizonLights.fillEllipse(
                     headX,
                     headY + headH * 0.35,
                     Math.max(4.5, 43 * p.s),
                     Math.max(2.8, 25 * p.s)
                 );
-                this.gHorizonLights.fillStyle(0xffd990, lightAlpha * 0.14);
+                this.gHorizonLights.fillStyle(0xffd990, lightAlpha * 0.19);
                 this.gHorizonLights.fillEllipse(
                     headX,
                     headY + headH * 0.35,
                     Math.max(3, 24 * p.s),
                     Math.max(1.8, 12 * p.s)
                 );
-                this.gHorizonLights.fillStyle(0xffe4a8, lightAlpha * 0.94);
+                this.gHorizonLights.fillStyle(0xffe4a8, lightAlpha);
                 this.gHorizonLights.fillRoundedRect(
                     headX - headW * 0.34,
                     headY,
@@ -1303,7 +1303,7 @@ export class Game extends Scene {
                 this.gHorizonLights.fillCircle(
                     headX,
                     headY + headH * 0.22,
-                    Math.max(0.55, 1.6 * p.s)
+                    Math.max(0.65, 1.9 * p.s)
                 );
 
                 // A faint pool on the verge/road edge reads as illumination
@@ -1311,7 +1311,7 @@ export class Game extends Scene {
                 if (p.y > HORIZON_Y + 34) {
                     const poolW = Math.max(8, 76 * p.s);
                     const poolH = Math.max(2.5, 20 * p.s);
-                    this.gCity.fillStyle(0xffd27d, lightAlpha * 0.12);
+                    this.gCity.fillStyle(0xffd27d, lightAlpha * 0.15);
                     this.gCity.fillEllipse(
                         p.x + dir * poolW * 0.16,
                         p.y + poolH * 0.18,
