@@ -996,7 +996,11 @@ export class Game extends Scene {
             const leftX = W / 2 - spread;
             const rightX = W / 2 + spread;
             const travelledFromFar = CITY_LAYER_FAR_Z - z;
-            const hillReveal = Math.min(1, Math.max(0, travelledFromFar / CITY_HILL_REVEAL_DISTANCE));
+            // Asymptotic rise avoids a hard 100% cutoff: the hill emergence
+            // blends continuously into the normal perspective-forward motion.
+            const hillReveal = Math.tanh(
+                Math.max(0, travelledFromFar) / CITY_HILL_REVEAL_DISTANCE
+            );
             const crestY = hillCrestY(leftX);
             const rootBurial = Math.max(2, 10 * bankScale);
             const projectedGround = p.y + layer.variant.ground * p.s + rootBurial;
