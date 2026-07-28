@@ -25,7 +25,7 @@ const CITY_BANK_W = 1086;
 const CITY_BANK_H = 671;
 const CITY_LEFT_INNER_GAP = 133;
 const CITY_RIGHT_INNER_GAP = 117;
-const CITY_HILL_REVEAL_DISTANCE = 760;
+const CITY_HILL_REVEAL_DISTANCE = 1000;
 
 
 function roadHillLift(wz) {
@@ -996,7 +996,7 @@ export class Game extends Scene {
             const leftX = W / 2 - spread;
             const rightX = W / 2 + spread;
             const travelledFromFar = CITY_LAYER_FAR_Z - z;
-            const hillReveal = smoothstep(travelledFromFar / CITY_HILL_REVEAL_DISTANCE);
+            const hillReveal = Math.min(1, Math.max(0, travelledFromFar / CITY_HILL_REVEAL_DISTANCE));
             const crestY = hillCrestY(leftX);
             const rootBurial = Math.max(2, 10 * bankScale);
             const projectedGround = p.y + layer.variant.ground * p.s + rootBurial;
