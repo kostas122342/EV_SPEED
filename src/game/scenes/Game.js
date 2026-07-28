@@ -1261,7 +1261,7 @@ export class Game extends Scene {
 
         // Realistic roadside lamps. The metal structure and ground light pool
         // stay inside the world lighting; only the warm LED bloom is emissive.
-        const lampPower = smoothstep((this.wNight - 0.18) / 0.48);
+        const lampPower = smoothstep((this.wNight - 0.06) / 0.30);
         const LAMP_SPACING = 430;
         const lampTravel = ((this.dist % LAMP_SPACING) + LAMP_SPACING) % LAMP_SPACING;
         for (let zl = 105 + LAMP_SPACING - lampTravel; zl < Z_FAR; zl += LAMP_SPACING) {
@@ -1274,10 +1274,10 @@ export class Game extends Scene {
 
             const sides = [{ p: pL, dir: 1 }, { p: pR, dir: -1 }];
             for (const { p, dir } of sides) {
-                const poleH = Math.max(5, 102 * p.s);
-                const poleW = Math.max(0.65, 3.6 * p.s);
-                const armLen = Math.max(2.6, 29 * p.s);
-                const armDrop = Math.max(0.45, 4.5 * p.s);
+                const poleH = Math.max(6, 118 * p.s);
+                const poleW = Math.max(0.7, 4.2 * p.s);
+                const armLen = Math.max(3, 34 * p.s);
+                const armDrop = Math.max(0.5, 5.2 * p.s);
                 const topY = p.y - poleH;
                 const bendX = p.x + dir * armLen * 0.48;
                 const bendY = topY - armDrop * 0.35;
@@ -1301,8 +1301,8 @@ export class Game extends Scene {
                 this.gCity.lineBetween(bendX, bendY, headX, headY);
 
                 // Slim horizontal luminaire, instead of the old circular head.
-                const headW = Math.max(2.5, 17 * p.s);
-                const headH = Math.max(1.1, 5.2 * p.s);
+                const headW = Math.max(2.8, 20 * p.s);
+                const headH = Math.max(1.2, 6.2 * p.s);
                 this.gCity.fillStyle(0x182126, poleAlpha);
                 this.gCity.fillRoundedRect(
                     headX - headW / 2,
@@ -1316,14 +1316,14 @@ export class Game extends Scene {
                 if (lightAlpha < 0.01) continue;
 
                 // Restrained amber bloom with a bright LED strip.
-                this.gHorizonLights.fillStyle(0xffc76a, lightAlpha * 0.035);
+                this.gHorizonLights.fillStyle(0xffc76a, lightAlpha * 0.05);
                 this.gHorizonLights.fillEllipse(
                     headX,
                     headY + headH * 0.35,
                     Math.max(4.5, 43 * p.s),
                     Math.max(2.8, 25 * p.s)
                 );
-                this.gHorizonLights.fillStyle(0xffd990, lightAlpha * 0.10);
+                this.gHorizonLights.fillStyle(0xffd990, lightAlpha * 0.14);
                 this.gHorizonLights.fillEllipse(
                     headX,
                     headY + headH * 0.35,
@@ -1338,13 +1338,19 @@ export class Game extends Scene {
                     Math.max(0.8, headH * 0.36),
                     Math.min(1.5, headH * 0.18)
                 );
+                this.gHorizonLights.fillStyle(0xfff4cf, lightAlpha);
+                this.gHorizonLights.fillCircle(
+                    headX,
+                    headY + headH * 0.22,
+                    Math.max(0.55, 1.6 * p.s)
+                );
 
                 // A faint pool on the verge/road edge reads as illumination
                 // without the opaque triangular beams used previously.
                 if (p.y > HORIZON_Y + 34) {
                     const poolW = Math.max(8, 76 * p.s);
                     const poolH = Math.max(2.5, 20 * p.s);
-                    this.gCity.fillStyle(0xffd27d, lightAlpha * 0.10);
+                    this.gCity.fillStyle(0xffd27d, lightAlpha * 0.12);
                     this.gCity.fillEllipse(
                         p.x + dir * poolW * 0.16,
                         p.y + poolH * 0.18,
