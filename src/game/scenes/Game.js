@@ -866,7 +866,7 @@ export class Game extends Scene {
         g.fillTriangle(bx, by - bh, bx + bw + side, by - bh - 6, bx + bw, by - bh);
 
         // Recessed windows and occasional balcony/roof equipment add scale.
-        const windowGlow = night > 0.30 ? 0xffd58a : 0xb9d9dc;
+        const windowGlass = lerpColor(0x8aa5ad, 0x050a12, night);
         const rows = Math.max(2, Math.floor((bh - 12) / 12));
         for (let row = 0; row < rows; row++) {
             const wy = by - bh + 10 + row * 12;
@@ -874,7 +874,7 @@ export class Game extends Scene {
                 if (hash01(seed * 31 + wx + row * 9) > 0.24) {
                     g.fillStyle(0x071018, 0.62);
                     g.fillRect(wx - 1, wy - 1, 5, 7);
-                    g.fillStyle(windowGlow, 0.28 + night * 0.67);
+                    g.fillStyle(windowGlass, 0.36);
                     g.fillRect(wx, wy, 3, 5);
                 }
             }
@@ -884,28 +884,6 @@ export class Game extends Scene {
             g.fillRect(bx + bw * 0.46, by - bh - 11, 2, 6);
             g.fillStyle(roofCol, 1);
             g.fillRect(bx + bw * 0.36, by - bh - 6, bw * 0.22, 3);
-        }
-    }
-
-    drawBuildingNightLights(g, bx, by, bw, bh, night, seed) {
-        const intensity = smoothstep((night - 0.16) / 0.54);
-        if (intensity <= 0) return;
-
-        const rows = Math.max(2, Math.floor((bh - 12) / 12));
-        for (let row = 0; row < rows; row++) {
-            const wy = by - bh + 10 + row * 12;
-            for (let wx = bx + 6; wx < bx + bw - 4; wx += 9) {
-                if (hash01(seed * 31 + wx + row * 9) > 0.24) {
-                    // Soft halo is rendered above the global night tint, followed
-                    // by a warm, sharp window core.
-                    g.fillStyle(0xffc45e, intensity * 0.075);
-                    g.fillCircle(wx + 1.5, wy + 2.5, 5.5);
-                    g.fillStyle(0xffd98a, intensity * 0.88);
-                    g.fillRect(wx, wy, 3, 5);
-                    g.fillStyle(0xfff1bf, intensity * 0.65);
-                    g.fillRect(wx, wy, 1, 4);
-                }
-            }
         }
     }
 
@@ -1158,51 +1136,6 @@ export class Game extends Scene {
             this.gFog.fillEllipse(leftEnd, city.groundY, fogHalfH * 2.4, fogHalfH * 1.6);
             this.gFog.fillEllipse(rightStart, city.groundY, fogHalfH * 2.4, fogHalfH * 1.6);
         }
-
-        // Emissive window layer remains visible above the global night tint.
-        const windowGlow = smoothstep((ni - 0.16) / 0.52);
-        if (windowGlow > 0) {
-            // Window glows use normalized coordinates so they remain attached
-            // to each moving building row at every perspective scale.
-            const lightRegions = [
-                { bank: 'left',  sourceX: 217, cols: 3, rows: 4 },
-                { bank: 'right', sourceX: 803, cols: 3, rows: 4 },
-            ];
-            for (let li = 0; li < renderedCityLayers.length; li++) {
-                const city = renderedCityLayers[li];
-                const top = city.bottom - city.height;
-                for (let ri = 0; ri < lightRegions.length; ri++) {
-                    const region = lightRegions[ri];
-                    const innerDistance = region.bank === 'left'
-                        ? (city.swapped ? 803 : CITY_BANK_W - region.sourceX)
-                        : (city.swapped ? 869 : region.sourceX);
-                    for (let row = 0; row < region.rows; row++) {
-                        for (let col = 0; col < region.cols; col++) {
-                            if (hash01(1500 + li * 300 + ri * 100 + row * 11 + col) < 0.38) continue;
-                            const wx = region.bank === 'left'
-                                ? city.leftX - (innerDistance - col * 27) * city.scale
-                                : city.rightX + (innerDistance + col * 27) * city.scale;
-                            const wy = top + (138 + row * 46) * city.scale;
-                            if (wx < -10 || wx > W + 10 || wy < -10 || wy > H + 10) continue;
-                            const glowAlpha = windowGlow * city.alpha;
-                            const windowW = Math.max(1, 12 * city.scale);
-                            const windowH = Math.max(1.5, 19 * city.scale);
-                            if (wy + windowH >= hillCrestY(wx)) continue;
-                            this.gHorizonLights.fillStyle(0xffc45e, glowAlpha * 0.10);
-                            this.gHorizonLights.fillCircle(
-                                wx + windowW / 2,
-                                wy + windowH / 2,
-                                Math.max(2, 19 * city.scale)
-                            );
-                            this.gHorizonLights.fillStyle(0xffdfa0, glowAlpha * 0.90);
-                            this.gHorizonLights.fillRect(wx, wy, windowW, windowH);
-                        }
-                    }
-                }
-            }
-        }
-
-
 
         // Road scanlines. Safe flicker thresholds (dz/scanline < 0.5*period):
         //   road stripes (p=120): dy>74   curbs (p=60): dy>104
