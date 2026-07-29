@@ -118,8 +118,7 @@ export class Garage extends Scene {
                     btn.fillRoundedRect(cx - 54, cy + CARD_H / 2 - 54, 108, 32, 7);
                     this.cont.add(btn);
                     this.cont.add(this.add.text(cx, cy + CARD_H / 2 - 38, 'SELECT', {
-                        fontFamily: 'Arial Black', fontSize: 13, color: '#ffffff',
-                        stroke: '#000000', strokeThickness: 2
+                        fontFamily: 'Arial Black', fontSize: 13, color: '#ffffff'
                     }).setOrigin(0.5));
 
                     // Register hit area for DOM click detection (scrolled coords)

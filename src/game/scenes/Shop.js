@@ -248,7 +248,7 @@ export class Shop extends Scene {
                 const actionGfx    = this.add.graphics();
                 const actionTxt    = this.add.text(cx, actionBtnY, '', {
                     fontFamily: 'Arial Black', fontSize: 14,
-                    color: '#ffffff', stroke: '#000000', strokeThickness: 2
+                    color: '#ffffff'
                 }).setOrigin(0.5, 0.5);
                 const actionEnIcon = this.add.image(cx + 22, actionBtnY, 'energyLogo')
                     .setOrigin(0.5).setScale(0.22).setVisible(false);
@@ -269,7 +269,8 @@ export class Shop extends Scene {
                         actionGfx.fillRoundedRect(abx0, abyBase + 3, abw, abh, 7);
                         actionGfx.fillStyle(0x00cfff, 1);
                         actionGfx.fillRoundedRect(abx0, abyBase, abw, abh, 7);
-                        actionTxt.setText('SELECTED').setColor('#ffffff').setOrigin(0.5, 0.5).setX(cx);
+                        actionTxt.setText('SELECTED').setColor('#002244')
+                            .setStroke('#000000', 0).setOrigin(0.5, 0.5).setX(cx);
                         actionEnIcon.setVisible(false);
                     } else if (ownedV) {
                         actionGfx.fillStyle(0x000000, 0.45);
@@ -278,7 +279,8 @@ export class Shop extends Scene {
                         actionGfx.fillRoundedRect(abx0, abyBase + 3, abw, abh, 7);
                         actionGfx.fillStyle(0x005588, 1);
                         actionGfx.fillRoundedRect(abx0, abyBase, abw, abh, 7);
-                        actionTxt.setText('SELECT').setColor('#ffffff').setOrigin(0.5, 0.5).setX(cx);
+                        actionTxt.setText('SELECT').setColor('#ffffff')
+                            .setStroke('#000000', 0).setOrigin(0.5, 0.5).setX(cx);
                         actionEnIcon.setVisible(false);
                     } else {
                         const canAffordV = liveEnergy >= (variant.price || 0);
@@ -290,6 +292,7 @@ export class Shop extends Scene {
                         actionGfx.fillRoundedRect(abx0, abyBase, abw, abh, 7);
                         actionTxt.setText((variant.price || 0).toString())
                             .setColor(canAffordV ? '#ffffff' : '#aaaaaa')
+                            .setStroke('#000000', 1)
                             .setOrigin(1, 0.5).setX(cx + 2);
                         actionEnIcon.setVisible(true);
                     }
@@ -312,7 +315,7 @@ export class Shop extends Scene {
                 const btnGfx  = this.add.graphics();
                 const btnTxt  = this.add.text(cx, btnY, '', {
                     fontFamily: 'Arial Black', fontSize: 13,
-                    color: '#ffffff', stroke: '#000000', strokeThickness: 2
+                    color: '#ffffff'
                 }).setOrigin(0.5);
                 let priceIcon = null;
 
@@ -323,14 +326,16 @@ export class Shop extends Scene {
                         btnGfx.fillRoundedRect(bx0 + 3, by0 + 4, 108, 32, 7);
                         btnGfx.fillStyle(0x00cfff, 1);
                         btnGfx.fillRoundedRect(bx0, by0, 108, 32, 7);
-                        btnTxt.setText('SELECTED').setColor('#ffffff').setOrigin(0.5, 0.5);
+                        btnTxt.setText('SELECTED').setColor('#002244')
+                            .setStroke('#000000', 0).setOrigin(0.5, 0.5);
                         if (priceIcon) priceIcon.setVisible(false);
                     } else if (state === 'select') {
                         btnGfx.fillStyle(0x001a33, 1);
                         btnGfx.fillRoundedRect(bx0 + 3, by0 + 4, 108, 32, 7);
                         btnGfx.fillStyle(0x005588, 1);
                         btnGfx.fillRoundedRect(bx0, by0, 108, 32, 7);
-                        btnTxt.setText('SELECT').setColor('#ffffff').setOrigin(0.5, 0.5);
+                        btnTxt.setText('SELECT').setColor('#ffffff')
+                            .setStroke('#000000', 0).setOrigin(0.5, 0.5);
                         if (priceIcon) priceIcon.setVisible(false);
                     } else {
                         // buy
@@ -340,6 +345,7 @@ export class Shop extends Scene {
                         btnGfx.fillRoundedRect(bx0, by0, 108, 32, 7);
                         btnTxt.setText(car.price.toString())
                             .setColor(canAfford ? '#ffffff' : '#aaaaaa')
+                            .setStroke('#000000', 1)
                             .setOrigin(1, 0.5).setX(cx + 2);
                         if (priceIcon) priceIcon.setVisible(true);
                     }
