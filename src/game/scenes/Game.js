@@ -1278,15 +1278,15 @@ export class Game extends Scene {
                 const lightAlpha = lampPower * visibility;
                 if (lightAlpha < 0.01) continue;
 
-                // Restrained amber bloom with a bright LED strip.
-                this.gHorizonLights.fillStyle(0xffc76a, lightAlpha * 0.07);
+                // Warm layered bloom with enough output to read clearly at night.
+                this.gHorizonLights.fillStyle(0xffc76a, lightAlpha * 0.11);
                 this.gHorizonLights.fillEllipse(
                     headX,
                     headY + headH * 0.35,
                     Math.max(4.5, 43 * p.s),
                     Math.max(2.8, 25 * p.s)
                 );
-                this.gHorizonLights.fillStyle(0xffd990, lightAlpha * 0.19);
+                this.gHorizonLights.fillStyle(0xffd990, lightAlpha * 0.29);
                 this.gHorizonLights.fillEllipse(
                     headX,
                     headY + headH * 0.35,
@@ -1308,17 +1308,26 @@ export class Game extends Scene {
                     Math.max(0.65, 1.9 * p.s)
                 );
 
-                // A faint pool on the verge/road edge reads as illumination
-                // without the opaque triangular beams used previously.
+                // Layered pools brighten the verge and road edge while remaining
+                // underneath cars and the night wash, so the light feels grounded.
                 if (p.y > HORIZON_Y + 34) {
                     const poolW = Math.max(8, 76 * p.s);
                     const poolH = Math.max(2.5, 20 * p.s);
-                    this.gCity.fillStyle(0xffd27d, lightAlpha * 0.15);
+                    const poolX = p.x + dir * poolW * 0.16;
+                    const poolY = p.y + poolH * 0.18;
+                    this.gCity.fillStyle(0xffc66b, lightAlpha * 0.30);
                     this.gCity.fillEllipse(
-                        p.x + dir * poolW * 0.16,
-                        p.y + poolH * 0.18,
+                        poolX,
+                        poolY,
                         poolW,
                         poolH
+                    );
+                    this.gCity.fillStyle(0xffe0a0, lightAlpha * 0.17);
+                    this.gCity.fillEllipse(
+                        poolX,
+                        poolY,
+                        poolW * 0.58,
+                        poolH * 0.62
                     );
                 }
             }
