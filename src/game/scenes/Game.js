@@ -9,6 +9,41 @@ const LANE_CENTERS = [-ROAD_HW * 0.67, 0, ROAD_HW * 0.67];
 const DASH_LEN = 80, DASH_GAP = 80, DASH_P = DASH_LEN + DASH_GAP;
 const SCAN = 3;
 const SHIELD_DURATION_SECONDS = 4;
+// Player hitboxes deliberately remain a little forgiving, but every collision
+// branch uses the same profile. Values are screen-space at the player's fixed
+// depth and are inset from each sprite's measured opaque bounds.
+const PLAYER_HITBOXES = {
+    playerCar: { halfW: 10, topY: H - 205, bottomY: H - 115 },
+    modelY:    { halfW: 26, topY: H - 222, bottomY: H - 115 },
+    evS:       { halfW: 26, topY: H - 222, bottomY: H - 115 },
+    evX:       { halfW: 18, topY: H - 218, bottomY: H - 115 },
+    cbt:       { halfW: 14, topY: H - 212, bottomY: H - 115 },
+    scooter:   {
+        halfW: 17,
+        topY: H - 216,
+        bottomY: H - 115,
+        leanCenterShift: 30,
+        leanHalfWGain: 14
+    },
+};
+const PLAYER_HITBOX_FAMILY = {
+    ev3Blue: 'playerCar',
+    ev3Red: 'playerCar',
+    evYWhite: 'modelY',
+    evYRed: 'modelY',
+    evsOrange: 'evS',
+    evsGreen: 'evS',
+    evxBlue: 'evX',
+    evxRed: 'evX',
+    cbtWhite: 'cbt',
+    cbtPurple: 'cbt',
+};
+// These dimensions come from the non-transparent pixels of each enemy asset,
+// with only a small amount of forgiving horizontal padding.
+const ENEMY_TYPES = [
+    { key: 'P1',          renderScale: 0.20, originY: 0.74, hitHalfW: 60, hitTop: 115, hitBottom: 13 },
+    { key: 'enemyCityEv', renderScale: 0.18, originY: 0.76, hitHalfW: 60, hitTop: 117, hitBottom: 12 },
+];
 const CITY_LAYER_VARIANTS = [
     { swapped: false, size: 1.00, side: 40,  ground: 0 },
     { swapped: true,  size: 0.88, side: 88,  ground: 8 },
@@ -307,11 +342,7 @@ export class Game extends Scene {
                 if (free.length === 0) return;
                 const lane = free[Math.floor(Math.random() * free.length)];
                 const willRush = this.spd >= 700 && Math.random() < 0.45;
-                const enemyTypes = [
-                    { key: 'P1',          renderScale: 0.20, originY: 0.74, hitHalfW: 62, hitTop: 5,   hitBottom: 5 },
-                    { key: 'enemyCityEv', renderScale: 0.18, originY: 0.76, hitHalfW: 74, hitTop: 115, hitBottom: 16 },
-                ];
-                const enemyType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+                const enemyType = ENEMY_TYPES[Math.floor(Math.random() * ENEMY_TYPES.length)];
                 const e = {
                     z: Z_FAR, lane, speedMul: 1.0, rushPhase: 'idle', rushT: 0, willRush,
                     renderScale: enemyType.renderScale,
@@ -504,6 +535,21 @@ export class Game extends Scene {
             }
         };
         tick();
+    }
+
+    getPlayerHitbox() {
+        const family = PLAYER_HITBOX_FAMILY[this.selectedCar] || this.selectedCar;
+        const profile = PLAYER_HITBOXES[family] || PLAYER_HITBOXES.playerCar;
+        const lean = family === 'scooter' ? Math.sin(this.carRot || 0) : 0;
+        const centerX = this.px + lean * (profile.leanCenterShift || 0);
+        const halfW = profile.halfW + Math.abs(lean) * (profile.leanHalfWGain || 0);
+
+        return {
+            left: centerX - halfW,
+            right: centerX + halfW,
+            top: profile.topY,
+            bottom: profile.bottomY,
+        };
     }
 
     go(d) {
@@ -715,15 +761,18 @@ export class Game extends Scene {
         if (this.puFlashT > 0) this.puFlashT -= dt;
         if (this.puBombT  > 0) this.puBombT  -= dt;
 
+        const playerHitbox = this.getPlayerHitbox();
         for (let ei = this.enemies.length - 1; ei >= 0; ei--) {
             const e = this.enemies[ei];
-            const smallCar = this.selectedCar === 'evS' || this.selectedCar === 'modelY';
-            const playerW = smallCar ? 26 : this.selectedCar === 'evX' ? 18 : this.selectedCar === 'cbt' ? 14 : this.selectedCar === 'scooter' ? 16 : 10;
             // Stop-phase enemies sit at z≈350-400 which projects above the normal y-bounds.
             // Use z+x proximity so the player must actually reach the car horizontally.
             if (e.rushPhase === 'stop' && e.z <= Z_NEAR + 200) {
                 const sp = proj(LANE_CENTERS[e.lane], Math.max(e.z, 1));
-                if (Math.abs(this.px - sp.x) < e.hitHalfW * sp.s + playerW) {
+                const stopHalfW = e.hitHalfW * sp.s;
+                const overlapsStoppedEnemy =
+                    playerHitbox.right > sp.x - stopHalfW &&
+                    playerHitbox.left < sp.x + stopHalfW;
+                if (overlapsStoppedEnemy) {
                     if (this.shieldT > 0) {
                         this.showEnemyCrash(e.sprite, e.z, e.lane);
                         this.enemies.splice(ei, 1);
@@ -735,30 +784,37 @@ export class Game extends Scene {
             const ep   = proj(LANE_CENTERS[e.lane], Math.max(e.z, 1));
             const enemyTop = ep.y - e.hitTop * ep.s;
             const enemyBottom = ep.y + e.hitBottom * ep.s;
-            const frontBound = smallCar ? H - 222 : this.selectedCar === 'evX' ? H - 218 : this.selectedCar === 'cbt' ? H - 212 : this.selectedCar === 'scooter' ? H - 216 : H - 205;
-            if (enemyBottom < frontBound || enemyTop > H - 115) continue;
-            const hw = e.hitHalfW * ep.s + playerW;
-            if (Math.abs(this.px - ep.x) < hw) {
-                if (this.shieldT > 0) {
-                    this.showEnemyCrash(e.sprite, e.z, e.lane);
-                    this.enemies.splice(ei, 1);
-                    continue;
-                }
-                this.die(); return;
+            const enemyHalfW = e.hitHalfW * ep.s;
+            if (
+                enemyBottom <= playerHitbox.top ||
+                enemyTop >= playerHitbox.bottom ||
+                ep.x + enemyHalfW <= playerHitbox.left ||
+                ep.x - enemyHalfW >= playerHitbox.right
+            ) continue;
+            if (this.shieldT > 0) {
+                this.showEnemyCrash(e.sprite, e.z, e.lane);
+                this.enemies.splice(ei, 1);
+                continue;
             }
+            this.die(); return;
         }
         for (let oi = this.obstacles.length - 1; oi >= 0; oi--) {
             const o = this.obstacles[oi];
             const op = proj(LANE_CENTERS[o.lane], Math.max(o.z, 1));
-            if (op.y + 20 * op.s < (this.selectedCar === 'cbt' ? H - 212 : this.selectedCar === 'scooter' ? H - 216 : H - 205) || op.y - 20 * op.s > H - 89) continue;
-            if (Math.abs(this.px - op.x) < 32 * op.s + 20) {
-                if (this.shieldT > 0) {
-                    this.showObstacleClear(o.sprite, o.z, o.lane);
-                    this.obstacles.splice(oi, 1);
-                    continue;
-                }
-                this.die(); return;
+            const obstacleHalfW = 32 * op.s;
+            const obstacleHalfH = 20 * op.s;
+            if (
+                op.y + obstacleHalfH <= playerHitbox.top ||
+                op.y - obstacleHalfH >= playerHitbox.bottom ||
+                op.x + obstacleHalfW <= playerHitbox.left ||
+                op.x - obstacleHalfW >= playerHitbox.right
+            ) continue;
+            if (this.shieldT > 0) {
+                this.showObstacleClear(o.sprite, o.z, o.lane);
+                this.obstacles.splice(oi, 1);
+                continue;
             }
+            this.die(); return;
         }
 
         for (let i = this.sparks.length - 1; i >= 0; i--) {
