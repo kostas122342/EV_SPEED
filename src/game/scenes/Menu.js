@@ -1,4 +1,5 @@
 import { Scene, Textures } from 'phaser';
+import { addMenuVideoBackground, preloadMenuVideo } from '../menuVideoBackground.js';
 
 const W = 480, H = 720;
 
@@ -6,7 +7,7 @@ export class Menu extends Scene {
     constructor() { super('Menu'); }
 
     preload() {
-        this.load.image('menuBg',   'assets/EVSPEED2.png');
+        preloadMenuVideo(this);
         this.load.image('playerCar', 'assets/CarFinal.png');
         this.load.image('energyLogo', 'assets/En4.png');
         this.load.audio('bgMusic',  'assets/EvSong.mp3');
@@ -25,10 +26,7 @@ export class Menu extends Scene {
         if (musicOn && !bgMusic.isPlaying) bgMusic.play();
         else if (!musicOn && bgMusic.isPlaying) bgMusic.stop();
 
-        // Background
-        this.add.image(W / 2, H / 2, 'menuBg')
-            .setDisplaySize(W, H)
-            .setDepth(0);
+        this.menuVideo = addMenuVideoBackground(this, W, H);
 
         this.menuGroup = this.add.group();
 
@@ -62,15 +60,15 @@ export class Menu extends Scene {
             .on('pointerdown', () => this.showInfoOverlay());
 
         // START button
-        this.makeButton(W / 2, 310, 240, 56, '▶  START', () => {
+        this.makeButton(W / 2, 308, 210, 48, '▶  START', () => {
             this.showModeSelect();
         }, undefined, this.menuGroup);
 
-        this.makeButton(W / 2, 385, 240, 56, '🛒  SHOP', () => {
+        this.makeButton(W / 2, 374, 210, 48, '🛒  SHOP', () => {
             this.scene.start('Shop');
         }, [0x004488, 0x0055aa, 0x2288cc], this.menuGroup, { emoji: -44, label: -10 });
 
-        this.makeButton(W / 2, 460, 240, 56, '⚙️  SETTINGS', () => {
+        this.makeButton(W / 2, 440, 210, 48, '⚙️  SETTINGS', () => {
             this.scene.start('Settings');
         }, [0x333344, 0x444466, 0x6666aa], this.menuGroup, { emoji: -60, label: -10 });
     }
@@ -78,13 +76,19 @@ export class Menu extends Scene {
     showModeSelect() {
         this.menuGroup.setVisible(false);
 
-        const ov = this.add.graphics().setDepth(10);
-        ov.fillStyle(0x000000, 1);
-        ov.fillRect(0, 0, W, H);
-        this.add.image(W / 2, H / 2, 'menuBg').setDisplaySize(W, H).setDepth(10);
-        const dimOv = this.add.graphics().setDepth(10);
-        dimOv.fillStyle(0x000000, 0.65);
-        dimOv.fillRect(0, 0, W, H);
+        // Restore the soft-focus modal treatment used before the video menu:
+        // the animation remains visible, but is dimmed behind a framed panel.
+        const dimOverlay = this.add.graphics().setDepth(10);
+        dimOverlay.fillStyle(0x000000, 0.62);
+        dimOverlay.fillRect(0, 0, W, H);
+
+        const modalFrame = this.add.graphics().setDepth(10.5);
+        modalFrame.fillStyle(0x050b16, 0.72);
+        modalFrame.fillRoundedRect(60, 205, 360, 350, 26);
+        modalFrame.lineStyle(3, 0x087fc5, 0.82);
+        modalFrame.strokeRoundedRect(60, 205, 360, 350, 26);
+        modalFrame.lineStyle(1, 0x5ee5ff, 0.38);
+        modalFrame.strokeRoundedRect(66, 211, 348, 338, 21);
 
         this.add.text(W / 2, H / 2 - 110, 'SELECT MODE', {
             fontFamily: 'Arial Black', fontSize: 30, color: '#ffffff',
@@ -165,12 +169,12 @@ export class Menu extends Scene {
         if (splitParts) {
             const eo = textOffsetX.emoji || 0, lo = textOffsetX.label || 0;
             const emojiTxt = this.add.text(x + eo - 28, y, splitParts[1], {
-                fontFamily: 'Arial Black', fontSize: 30,
+                fontFamily: 'Arial Black', fontSize: 26,
                 color: '#ffffff', stroke: '#000000', strokeThickness: 4,
                 fontStyle: 'italic'
             }).setOrigin(0.5).setDepth(3);
             txt = this.add.text(x + lo + 28, y, splitParts[2], {
-                fontFamily: 'Arial Black', fontSize: 30,
+                fontFamily: 'Arial Black', fontSize: 26,
                 color: '#ffffff', stroke: '#000000', strokeThickness: 4,
                 fontStyle: 'italic'
             }).setOrigin(0.5).setDepth(3);
@@ -178,7 +182,7 @@ export class Menu extends Scene {
         } else {
             const off = typeof textOffsetX === 'number' ? textOffsetX : 0;
             txt = this.add.text(x + off, y, label, {
-                fontFamily: 'Arial Black', fontSize: 30,
+                fontFamily: 'Arial Black', fontSize: 26,
                 color: '#ffffff', stroke: '#000000', strokeThickness: 4,
                 fontStyle: 'italic'
             }).setOrigin(0.5).setDepth(3);

@@ -9,7 +9,7 @@ export class Capsule extends Scene {
     constructor() { super('Capsule'); }
 
     preload() {
-        this.load.image('car2',    'assets/car2.png');
+        this.load.image('car2',    'assets/carRed.png');
         this.load.image('evS',     'assets/evS.png');
         this.load.image('evX',     'assets/evX.png');
         this.load.image('modelY',  'assets/modelY.png');

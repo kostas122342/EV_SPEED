@@ -1,40 +1,41 @@
 import { Scene } from 'phaser';
+import { addMenuVideoBackground, preloadMenuVideo } from '../menuVideoBackground.js';
 
 const W = 480, H = 720;
 
 const SHOP_CARS = [
     { key: 'playerCar', name: 'EV 3',    unlockKey: null,              price: 0,    scale: 0.23, offY: -92, offX: 0, colors: [
-        { key: 'playerCar', swatch: '#d8d8d8', price: 0   , unlockKey: null },
-        { key: 'ev3Blue',   swatch: '#2255ee', price: 0,  unlockKey: 'evspeed_color_ev3Blue', scale: 0.205, offX: 5, offY: 6 },
-        { key: 'ev3Red',    swatch: '#dd2222', price: 0,  unlockKey: 'evspeed_color_ev3Red',  scale: 0.197, offX: 2, offY: 8 },
+        { key: 'playerCar', swatch: '#d8d8d8', price: 0, unlockKey: null, offX: 2, offY: -3 },
+        { key: 'ev3Blue',   swatch: '#2255ee', price: 200, unlockKey: 'evspeed_color_ev3Blue', scale: 0.205, offX: 5, offY: 6 },
+        { key: 'ev3Red',    swatch: '#dd2222', price: 200, unlockKey: 'evspeed_color_ev3Red',  scale: 0.197, offX: 4, offY: 10 },
     ]},
-    { key: 'modelY',    name: 'EV Y',    unlockKey: 'evspeed_carY',    price: 0,  scale: 0.10, offY: -28, offX: 0, colors: [
+    { key: 'modelY',    name: 'EV Y',    unlockKey: 'evspeed_carY',    price: 500, scale: 0.10, offY: -28, offX: 0, colors: [
         { key: 'evYWhite', previewKey: 'shopEvYWhite', swatch: '#ffffff', price: 0, unlockKey: 'evspeed_color_evYWhite' },
-        { key: 'modelY',   previewKey: 'shopModelY',   swatch: '#888888', price: 0, unlockKey: 'evspeed_color_evYGrey' },
-        { key: 'evYRed',   previewKey: 'shopEvYRed',   swatch: '#dd2222', price: 0, unlockKey: 'evspeed_color_evYRed' },
+        { key: 'modelY',   previewKey: 'shopModelY',   swatch: '#888888', price: 300, unlockKey: 'evspeed_color_evYGrey' },
+        { key: 'evYRed',   previewKey: 'shopEvYRed',   swatch: '#dd2222', price: 300, unlockKey: 'evspeed_color_evYRed' },
     ]},
-    { key: 'evS',       name: 'EV S',    unlockKey: 'evspeed_evS',     price: 0, scale: 0.14, offY: -40, offX: 0, colors: [
+    { key: 'evS',       name: 'EV S',    unlockKey: 'evspeed_evS',     price: 1000, scale: 0.14, offY: -40, offX: 0, colors: [
         { key: 'evS',       swatch: '#2255ee', price: 0, unlockKey: 'evspeed_color_evSBlue' },
-        { key: 'evsOrange', swatch: '#ff7700', price: 0, unlockKey: 'evspeed_color_evsOrange' },
-        { key: 'evsGreen',  swatch: '#22aa44', price: 0, unlockKey: 'evspeed_color_evsGreen' },
+        { key: 'evsOrange', swatch: '#ff7700', price: 400, unlockKey: 'evspeed_color_evsOrange' },
+        { key: 'evsGreen',  swatch: '#22aa44', price: 400, unlockKey: 'evspeed_color_evsGreen' },
     ]},
-    { key: 'evX',       name: 'EV X',    unlockKey: 'evspeed_evX',     price: 0, scale: 0.10, offY: -40, offX: 0, colors: [
+    { key: 'evX',       name: 'EV X',    unlockKey: 'evspeed_evX',     price: 1500, scale: 0.10, offY: -40, offX: 0, colors: [
         { key: 'evX',     swatch: '#222222', price: 0, unlockKey: 'evspeed_color_evXBlack' },
-        { key: 'evxBlue', swatch: '#33aadd', price: 0, unlockKey: 'evspeed_color_evXBlue' },
-        { key: 'evxRed',  swatch: '#dd2222', price: 0, unlockKey: 'evspeed_color_evXRed' },
+        { key: 'evxBlue', swatch: '#33aadd', price: 500, unlockKey: 'evspeed_color_evXBlue' },
+        { key: 'evxRed',  swatch: '#dd2222', price: 500, unlockKey: 'evspeed_color_evXRed' },
     ]},
-    { key: 'cbt',       name: 'CBT',     unlockKey: 'evspeed_cbt',     price: 0, scale: 0.12, offY: -40, offX: 0, colors: [
+    { key: 'cbt',       name: 'CBT',     unlockKey: 'evspeed_cbt',     price: 2000, scale: 0.12, offY: -40, offX: 0, colors: [
         { key: 'cbtWhite',  swatch: '#ffffff', price: 0, unlockKey: 'evspeed_color_cbtWhite' },
-        { key: 'cbt',       swatch: '#888888', price: 0, unlockKey: 'evspeed_color_cbtGrey' },
-        { key: 'cbtPurple', swatch: '#8833cc', price: 0, unlockKey: 'evspeed_color_cbtPurple' },
+        { key: 'cbt',       swatch: '#888888', price: 600, unlockKey: 'evspeed_color_cbtGrey' },
+        { key: 'cbtPurple', swatch: '#8833cc', price: 600, unlockKey: 'evspeed_color_cbtPurple' },
     ]},
-    { key: 'scooter',   name: 'SCOOTER', unlockKey: 'evspeed_scooter', price: 0, scale: 0.10, offY: -40, offX: 0 },
+    { key: 'scooter',   name: 'SCOOTER', unlockKey: 'evspeed_scooter', price: 3000, scale: 0.10, offY: -40, offX: 0 },
 ];
 
 const POWER_UPS = [
-    { key: 'clear', name: 'CLR',  icon: 'shopClear', price: 0, storeKey: 'evspeed_pu_clear', desc: 'Destroys lane obstacles',  iconScale: 0.20, iconOffY: 0 },
-    { key: 'bomb',  name: 'BOMB', icon: 'shopBomb',  price: 0, storeKey: 'evspeed_pu_bomb',  desc: 'Destroys all obstacles',   iconScale: 0.28, iconOffY: 6 },
-    { key: 'shield', name: 'SHIELD', icon: 'shieldIcon', price: 0, storeKey: 'evspeed_pu_shield', desc: '4s collision protection', iconScale: 0.07, iconOffY: 0 },
+    { key: 'clear', name: 'CLR',  icon: 'shopClear', price: 250, storeKey: 'evspeed_pu_clear', desc: 'Destroys lane obstacles',  iconScale: 0.20, iconOffY: 0 },
+    { key: 'bomb',  name: 'BOMB', icon: 'shopBomb',  price: 400, storeKey: 'evspeed_pu_bomb',  desc: 'Destroys all obstacles',   iconScale: 0.28, iconOffY: 6 },
+    { key: 'shield', name: 'SHIELD', icon: 'shieldIcon', price: 600, storeKey: 'evspeed_pu_shield', desc: '4s collision protection', iconScale: 0.07, iconOffY: 0 },
 ];
 
 const POSITIONS = [
@@ -79,13 +80,13 @@ export class Shop extends Scene {
         this.load.image('evYWhite',   'assets/evYWHITE.png');
         this.load.image('evYRed',     'assets/evYRED.png');
         this.load.image('shopModelY',   'assets/modelY.png');
-        this.load.image('shopEvYWhite', 'assets/EVYWHITE.png');
+        this.load.image('shopEvYWhite', 'assets/evYWHITE.png');
         this.load.image('shopEvYRed',   'assets/evYRED.png');
         this.load.image('cbt',        'assets/CBT.png');
         this.load.image('cbtWhite',   'assets/CBTWHITE.png');
         this.load.image('cbtPurple',  'assets/cbtPURPLE.png');
         this.load.image('scooter',    'assets/SCOOTER.png');
-        this.load.image('menuBg',     'assets/EVSPEED2.png');
+        preloadMenuVideo(this);
         this.load.image('energyLogo', 'assets/En45.png');
         this.load.image('shopBomb',   'assets/bomb.png');
         this.load.image('shopClear',  'assets/CLEAR.png');
@@ -113,7 +114,7 @@ export class Shop extends Scene {
         let liveSelected = selectedCar;
         let liveEnergy   = energy;
 
-        this.add.image(W / 2, H / 2, 'menuBg').setDisplaySize(W, H).setDepth(0);
+        addMenuVideoBackground(this, W, H);
         const ov = this.add.graphics().setDepth(1);
         ov.fillStyle(0x000000, 0.62);
         ov.fillRect(0, 0, W, H);
@@ -291,8 +292,8 @@ export class Shop extends Scene {
                         actionGfx.fillStyle(0xffaa00, 1);
                         actionGfx.fillRoundedRect(abx0, abyBase, abw, abh, 7);
                         actionTxt.setText((variant.price || 0).toString())
-                            .setColor(canAffordV ? '#ffffff' : '#aaaaaa')
-                            .setStroke('#000000', 1)
+                            .setColor('#000000')
+                            .setStroke('#000000', 0)
                             .setOrigin(1, 0.5).setX(cx + 2);
                         actionEnIcon.setVisible(true);
                     }
@@ -344,8 +345,8 @@ export class Shop extends Scene {
                         btnGfx.fillStyle(0xffaa00, 1);
                         btnGfx.fillRoundedRect(bx0, by0, 108, 32, 7);
                         btnTxt.setText(car.price.toString())
-                            .setColor(canAfford ? '#ffffff' : '#aaaaaa')
-                            .setStroke('#000000', 1)
+                            .setColor('#000000')
+                            .setStroke('#000000', 0)
                             .setOrigin(1, 0.5).setX(cx + 2);
                         if (priceIcon) priceIcon.setVisible(true);
                     }
@@ -462,7 +463,7 @@ export class Shop extends Scene {
 
             this.puCont.add(this.add.text(cx + 2, btnY, pu.price.toString(), {
                 fontFamily: 'Arial Black', fontSize: 14,
-                color: canAffordPu ? '#ffffff' : '#aaaaaa', stroke: '#000000', strokeThickness: 2
+                color: '#000000'
             }).setOrigin(1, 0.5));
 
             const puIcon = this.add.image(cx + 22, btnY, 'energyLogo')

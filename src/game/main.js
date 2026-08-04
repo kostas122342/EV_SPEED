@@ -41,7 +41,19 @@ GameObjects.GameObjectFactory.prototype.text = function (x, y, text, style = {})
         hdStyle.strokeThickness = Math.min(strokeThickness, 1);
     }
 
-    return textFactory.call(this, x, y, text, hdStyle);
+    const textObject = textFactory.call(this, x, y, text, hdStyle);
+
+    // Canvas text metrics can omit the synthetic italic overhang of the final
+    // glyph (for example the last T in START). Symmetric padding expands only
+    // the generated texture and keeps centred button labels in the same place.
+    const isItalicDisplay = usesDisplayFont
+        && String(sourceStyle.fontStyle || '').toLowerCase().includes('italic');
+    if (isItalicDisplay) {
+        const italicPadding = Math.ceil(fontSize * 0.18 + strokeThickness * 0.5);
+        textObject.setPadding(italicPadding, 2, italicPadding, 2);
+    }
+
+    return textObject;
 };
 
 // Find out more information about the Game Config at:

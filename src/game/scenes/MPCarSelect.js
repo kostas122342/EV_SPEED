@@ -1,4 +1,5 @@
 import { Scene } from 'phaser';
+import { addMenuVideoBackground, preloadMenuVideo } from '../menuVideoBackground.js';
 
 const W = 480, H = 720;
 const CX1 = 118, CX2 = 362;
@@ -19,7 +20,7 @@ const DRIVER_NAMES = [
 ];
 
 const ALL_CARS = [
-    { key: 'playerCar', name: 'EV 3',    unlockKey: null,              scale: 0.238, offY: -85, offX: 1 },
+    { key: 'playerCar', name: 'EV 3',    unlockKey: null,              scale: 0.27, offY: -85, offX: 1 },
     { key: 'modelY',    name: 'EV Y',    unlockKey: 'evspeed_carY',    scale: 0.10, offY: -12, offX: 0 },
     { key: 'evS',       name: 'EV S',    unlockKey: 'evspeed_evS',     scale: 0.14, offY: -18, offX: 0 },
     { key: 'evX',       name: 'EV X',    unlockKey: 'evspeed_evX',     scale: 0.10, offY: -18, offX: 0 },
@@ -30,7 +31,7 @@ const ALL_CARS = [
 // Per-car color variants with their unlock keys and swatch colors
 const CARS_WITH_COLORS = {
     playerCar: [
-        { variantKey: 'playerCar', unlockKey: null,                     swatch: 0xd8d8d8 },
+        { variantKey: 'playerCar', previewKey: 'selectEv3White', unlockKey: null, swatch: 0xd8d8d8, scale: 0.23, offY: 3 },
         { variantKey: 'ev3Blue',   unlockKey: 'evspeed_color_ev3Blue',  swatch: 0x2255ee, scale: 0.205, offX: 4, offY: 11 },
         { variantKey: 'ev3Red',    unlockKey: 'evspeed_color_ev3Red',   swatch: 0xdd2222, scale: 0.197, offX: 1, offY: 13 },
     ],
@@ -87,6 +88,7 @@ export class MPCarSelect extends Scene {
 
     preload() {
         this.load.image('playerCar', 'assets/CarFinal.png');
+        this.load.image('selectEv3White', 'assets/CarFinal.png');
         this.load.image('ev3Blue',   'assets/ev3BLUE.png');
         this.load.image('ev3Red',    'assets/ev3RED.png');
         this.load.image('evS',       'assets/evS.png');
@@ -101,13 +103,13 @@ export class MPCarSelect extends Scene {
         // Dedicated keys prevent another scene's texture cache from leaving EV Y
         // previews mapped to Phaser's tiny missing-texture placeholder.
         this.load.image('selectModelY',   'assets/modelY.png');
-        this.load.image('selectEvYWhite', 'assets/EVYWHITE.png');
+        this.load.image('selectEvYWhite', 'assets/evYWHITE.png');
         this.load.image('selectEvYRed',   'assets/evYRED.png');
         this.load.image('cbt',       'assets/CBT.png');
         this.load.image('cbtWhite',  'assets/CBTWHITE.png');
         this.load.image('cbtPurple', 'assets/cbtPURPLE.png');
         this.load.image('scooter',   'assets/SCOOTER.png');
-        this.load.image('menuBg',    'assets/EVSPEED2.png');
+        preloadMenuVideo(this);
     }
 
     create() {
@@ -115,7 +117,7 @@ export class MPCarSelect extends Scene {
         this.isSingle = data.mode === 'single';
 
         this.cars = buildCarsList();
-        if (this.cars.length === 0) this.cars = [{ key: 'playerCar', name: 'EV 3', unlockKey: null, scale: 0.238, offY: -85, offX: 1, variantKey: 'playerCar', swatch: 0xd8d8d8 }];
+        if (this.cars.length === 0) this.cars = [{ key: 'playerCar', name: 'EV 3', unlockKey: null, scale: 0.23, offY: -82, offX: 1, variantKey: 'playerCar', swatch: 0xd8d8d8 }];
 
         // The carousel contains one entry per model; colors are selected inside its card.
         const lastCar = localStorage.getItem('evspeed_selected_car') || 'playerCar';
@@ -135,8 +137,9 @@ export class MPCarSelect extends Scene {
         this.p1DriverName = DRIVER_NAMES[i1];
         this.p2DriverName = DRIVER_NAMES[i2];
 
-        // Background
-        this.add.image(W / 2, H / 2, 'menuBg').setDisplaySize(W, H).setDepth(0);
+        // Animated background shared by the single-player and two-player modes.
+        addMenuVideoBackground(this, W, H);
+
         const ov = this.add.graphics().setDepth(1);
         ov.fillStyle(0x000000, 0.68);
         ov.fillRect(0, 0, W, H);
@@ -182,7 +185,7 @@ export class MPCarSelect extends Scene {
             this.drawDots(this.p1Dots, cx, dotY, this.p1Idx);
 
             if (this.cars.length > 1) {
-                const singleArrowOffset = CARD_W / 2 + 29;
+                const singleArrowOffset = 65;
                 this.makeArrow(cx - singleArrowOffset, arrowY, '◄', () => this.changeCar(1, -1));
                 this.makeArrow(cx + singleArrowOffset, arrowY, '►', () => this.changeCar(1, +1));
             }

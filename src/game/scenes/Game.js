@@ -9,11 +9,18 @@ const LANE_CENTERS = [-ROAD_HW * 0.67, 0, ROAD_HW * 0.67];
 const DASH_LEN = 80, DASH_GAP = 80, DASH_P = DASH_LEN + DASH_GAP;
 const SCAN = 3;
 const SHIELD_DURATION_SECONDS = 4;
+const ENERGY_RENDER_SCALE = 0.12;
+const ENERGY_COLLECTION_LEAD_PX = 8;
+// Non-transparent bounds of Energy.png relative to its centred 1254x1254 canvas.
+// Using these bounds prevents the transparent padding from collecting early.
+const ENERGY_OPAQUE_BOUNDS = { left: -257, right: 327, top: -413, bottom: 463 };
 // Player hitboxes deliberately remain a little forgiving, but every collision
 // branch uses the same profile. Values are screen-space at the player's fixed
 // depth and are inset from each sprite's measured opaque bounds.
 const PLAYER_HITBOXES = {
     playerCar: { halfW: 10, topY: H - 205, bottomY: H - 115 },
+    ev3Blue:   { halfW: 10, topY: H - 205, bottomY: H - 115 },
+    ev3Red:    { halfW: 10, topY: H - 205, bottomY: H - 115 },
     modelY:    { halfW: 26, topY: H - 222, bottomY: H - 115 },
     evS:       { halfW: 26, topY: H - 222, bottomY: H - 115 },
     evX:       { halfW: 18, topY: H - 218, bottomY: H - 115 },
@@ -27,8 +34,6 @@ const PLAYER_HITBOXES = {
     },
 };
 const PLAYER_HITBOX_FAMILY = {
-    ev3Blue: 'playerCar',
-    ev3Red: 'playerCar',
     evYWhite: 'modelY',
     evYRed: 'modelY',
     evsOrange: 'evS',
@@ -79,8 +84,36 @@ function proj(wx, wz) {
     return { x: W / 2 + wx * s, y: HORIZON_Y + CAM_H * s - roadHillLift(wz), s };
 }
 
+function energyOverlapsPlayer(energy, playerHitbox, playerLane) {
+    if (energy.lane !== playerLane) return false;
+
+    const p = proj(LANE_CENTERS[energy.lane], Math.max(energy.z, 1));
+    const scale = p.s * ENERGY_RENDER_SCALE;
+    const bounds = ENERGY_OPAQUE_BOUNDS;
+
+    return (
+        p.y + bounds.bottom * scale > playerHitbox.top - ENERGY_COLLECTION_LEAD_PX &&
+        p.y + bounds.top * scale < playerHitbox.bottom
+    );
+}
+
 function laneX(lane) {
     return W / 2 + LANE_CENTERS[lane] * (FOCAL / Z_NEAR);
+}
+
+function nearestLaneToX(screenX) {
+    let nearestLane = 0;
+    let nearestDistance = Infinity;
+
+    for (let lane = 0; lane < LANE_CENTERS.length; lane++) {
+        const distance = Math.abs(screenX - laneX(lane));
+        if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestLane = lane;
+        }
+    }
+
+    return nearestLane;
 }
 
 function rnd(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
@@ -130,8 +163,6 @@ export class Game extends Scene {
     constructor() { super('Game'); }
 
     preload() {
-        this.load.image('city',        'assets/City.png');
-        this.load.image('athens',      'assets/Athens.png');
         this.load.image('playerCar', 'assets/CarFinal.png');
         this.load.image('ev3Blue',   'assets/ev3BLUE.png');
         this.load.image('ev3Red',    'assets/ev3RED.png');
@@ -148,7 +179,7 @@ export class Game extends Scene {
         this.load.image('evYRed',    'assets/evYRED.png');
         // Gameplay-only EV Y keys avoid stale/missing textures cached by other scenes.
         this.load.image('gameModelY',   'assets/modelY.png');
-        this.load.image('gameEvYWhite', 'assets/EVYWHITE.png');
+        this.load.image('gameEvYWhite', 'assets/evYWHITE.png');
         this.load.image('gameEvYRed',   'assets/evYRED.png');
         this.load.image('cbt',       'assets/CBT.png');
         this.load.image('cbtWhite',  'assets/CBTWHITE.png');
@@ -221,6 +252,7 @@ export class Game extends Scene {
         // player time to see the sun before the first sunset.
         this.dayCycleT = 0.10;
         this.skyDrift = 0;
+        this.mountainLifeT = 0;
         const initialDay = sampleDayCycle(this.dayCycleT);
         this.wSky     = initialDay.sky;
         this.wGrass   = initialDay.grass;
@@ -236,6 +268,11 @@ export class Game extends Scene {
             .setOrigin(0.5, 1)
             .setDisplaySize(560, 265)
             .setDepth(0.35);
+        // Time-driven atmosphere adds life to the mountain without tying it to
+        // steering or road movement. The low bands remain behind the city bank.
+        this.gMountainShadow = this.add.graphics().setDepth(0.38).setBlendMode('MULTIPLY');
+        this.gMountainLight = this.add.graphics().setDepth(0.39).setBlendMode('SCREEN');
+        this.gMountainLife = this.add.graphics().setDepth(0.41);
         const cityTexture = this.textures.get('forestCityLayer');
         if (!cityTexture.has('cityBankLeftGrounded')) {
             cityTexture.add('cityBankLeftGrounded', 0, 0, 0, CITY_BANK_W, CITY_BANK_H);
@@ -272,13 +309,14 @@ export class Game extends Scene {
         const mpCarKey = this.mp ? (this.mpPlayer === 1 ? mpData.p1Car : mpData.p2Car) : (mpData.carKey || null);
         const selectedCar = mpCarKey || localStorage.getItem('evspeed_selected_car') || 'playerCar';
         this.selectedCar = selectedCar;
-        const CAR_SCALES = { playerCar: 0.32, evS: 0.17, evsOrange: 0.17, evsGreen: 0.17, evX: 0.114, evxBlue: 0.114, evxRed: 0.114, modelY: 0.1365, evYWhite: 0.1365, evYRed: 0.1365, cbt: 0.16, cbtWhite: 0.16, cbtPurple: 0.16, scooter: 0.11 };
+        const CAR_SCALES = { playerCar: 0.32, ev3Blue: 0.277, ev3Red: 0.279, evS: 0.17, evsOrange: 0.17, evsGreen: 0.17, evX: 0.114, evxBlue: 0.114, evxRed: 0.114, modelY: 0.1365, evYWhite: 0.1365, evYRed: 0.1365, cbt: 0.16, cbtWhite: 0.16, cbtPurple: 0.16, scooter: 0.11 };
         const VARIANT_DEFAULTS = { playerCar: 'playerCar', modelY: 'evYWhite', evS: 'evS', evX: 'evX', cbt: 'cbtWhite' };
         let carTextureKey = selectedCar;
         if (VARIANT_DEFAULTS[selectedCar]) {
             const mpColor = this.mp ? (this.mpPlayer === 1 ? mpData.p1Color : mpData.p2Color) : null;
             carTextureKey = mpColor || localStorage.getItem(`evspeed_activeColor_${selectedCar}`) || VARIANT_DEFAULTS[selectedCar];
         }
+        this.playerVariantKey = carTextureKey;
         const GAME_TEXTURE_KEYS = {
             modelY: 'gameModelY',
             evYWhite: 'gameEvYWhite',
@@ -286,7 +324,7 @@ export class Game extends Scene {
         };
         carTextureKey = GAME_TEXTURE_KEYS[carTextureKey] || carTextureKey;
         this.playerSprite = this.add.image(this.px, H - 140, carTextureKey)
-            .setScale(CAR_SCALES[selectedCar] ?? 0.32)
+            .setScale(CAR_SCALES[this.playerVariantKey] ?? CAR_SCALES[selectedCar] ?? 0.32)
             .setOrigin(0.5, 0.76)
             .setDepth(3.5);
 
@@ -538,7 +576,8 @@ export class Game extends Scene {
     }
 
     getPlayerHitbox() {
-        const family = PLAYER_HITBOX_FAMILY[this.selectedCar] || this.selectedCar;
+        const hitboxKey = this.playerVariantKey || this.selectedCar;
+        const family = PLAYER_HITBOX_FAMILY[hitboxKey] || hitboxKey;
         const profile = PLAYER_HITBOXES[family] || PLAYER_HITBOXES.playerCar;
         const lean = family === 'scooter' ? Math.sin(this.carRot || 0) : 0;
         const centerX = this.px + lean * (profile.leanCenterShift || 0);
@@ -698,6 +737,9 @@ export class Game extends Scene {
             }
         }
 
+        const playerHitbox = this.getPlayerHitbox();
+        const playerVisualLane = nearestLaneToX(this.px);
+
         for (let i = this.energies.length - 1; i >= 0; i--) {
             const ec = this.energies[i];
             ec.z -= this.spd * dt;
@@ -706,7 +748,7 @@ export class Game extends Scene {
                 this.energies.splice(i, 1);
                 continue;
             }
-            if (!ec.collected && ec.z < Z_NEAR + 130 && ec.lane === this.lane) {
+            if (!ec.collected && energyOverlapsPlayer(ec, playerHitbox, playerVisualLane)) {
                 ec.collected = true;
                 ec.sprite.setVisible(false);
                 this.playSfx('energyBeat', { volume: 0.25 });
@@ -761,7 +803,6 @@ export class Game extends Scene {
         if (this.puFlashT > 0) this.puFlashT -= dt;
         if (this.puBombT  > 0) this.puBombT  -= dt;
 
-        const playerHitbox = this.getPlayerHitbox();
         for (let ei = this.enemies.length - 1; ei >= 0; ei--) {
             const e = this.enemies[ei];
             // Stop-phase enemies sit at z≈350-400 which projects above the normal y-bounds.
@@ -832,6 +873,7 @@ export class Game extends Scene {
         // Continuous sunset → night → sunrise cycle.
         this.dayCycleT = (this.dayCycleT + dt / DAY_CYCLE_SECONDS) % 1;
         this.skyDrift = (this.skyDrift + dt * 2.8) % (W + 240);
+        this.mountainLifeT = (this.mountainLifeT + dt) % 10000;
         const day = sampleDayCycle(this.dayCycleT);
         this.wSky     = day.sky;
         this.wGrass   = day.grass;
@@ -944,12 +986,27 @@ export class Game extends Scene {
         }
     }
 
+    drawSoftMountainPatch(g, x, y, width, height, color, alpha) {
+        // Concentric low-alpha ellipses approximate the penumbra of a distant
+        // cloud shadow or light break without exposing a hard geometric edge.
+        const layers = 6;
+        for (let i = 0; i < layers; i++) {
+            const t = i / (layers - 1);
+            const scale = 1 - t * 0.34;
+            g.fillStyle(color, alpha * (0.12 + t * 0.10));
+            g.fillEllipse(x, y, width * scale, height * scale);
+        }
+    }
+
     redraw() {
         // Objects emerge from fog: invisible inside fog, fully visible by y=260
         const fogFade = (py) => smoothstep((py - HORIZON_Y - 30) / 50);
 
         this.gBg.clear();
         this.gSkyFx.clear();
+        this.gMountainShadow.clear();
+        this.gMountainLight.clear();
+        this.gMountainLife.clear();
         this.gHill.clear();
         this.gRoad.clear();
         this.gFog.clear();
@@ -1068,14 +1125,93 @@ export class Game extends Scene {
         this.gFog.fillGradientStyle(fogColor, fogColor, fogColor, fogColor, 0.92, 0.92, 0, 0);
         this.gFog.fillRect(0, HORIZON_Y + 30, W, 35);  // y=210→245: alpha 92→0%
 
-        // Layered high-resolution pseudo-3D environment. Mountains stay fixed;
-        // the split city banks below move through projected world depth.
+        // Layered high-resolution pseudo-3D environment. The mountains use a
+        // very slow forward-distance parallax; city banks move at road depth.
         const ni = this.wNight;
-        const environmentTint = lerpColor(0xffffff, this.wSky, 0.14);
+        const mountainTime = this.mountainLifeT;
+        const mountainApproach = 0.5 - 0.5 * Math.cos(this.dist * 0.00045);
+        const mountainScale = 1 + mountainApproach * 0.04;
+        const mountainParallaxX = Math.sin(this.dist * 0.00022) * 12
+            + Math.sin(mountainTime * 0.10) * 2;
+        const mountainFxY = -mountainApproach * 2.6;
+        const mountainDaylight = 1 - smoothstep((ni - 0.18) / 0.72);
+        const mountainLightPulse = 0.5 + 0.5 * Math.sin(mountainTime * 0.11);
+        const sunTouchedWhite = lerpColor(
+            0xffffff,
+            this.sunColor,
+            mountainDaylight * (0.012 + sunNearHorizon * 0.026 * mountainLightPulse)
+        );
+        const environmentTint = lerpColor(sunTouchedWhite, this.wSky, 0.14 + ni * 0.04);
         this.mountainLayer
-            .setPosition(W / 2, HORIZON_Y + 60)
+            .setPosition(W / 2 + mountainParallaxX, HORIZON_Y + 60)
+            .setDisplaySize(560 * mountainScale, 265 * mountainScale)
             .setTint(environmentTint)
             .setAlpha(0.96 - ni * 0.08);
+
+        // Broad cloud shadows crawl over the lower slopes. Their vertical range
+        // sits below the skyline and behind the foreground hill, keeping the
+        // motion on the mountain instead of reading as a screen-space overlay.
+        if (mountainDaylight > 0.01) {
+            const shadowSpan = W + 320;
+            const shadowX1 = -160 + ((mountainTime * 6.2 + 50) % shadowSpan);
+            const shadowX2 = W + 160 - ((mountainTime * 4.4 + 280) % shadowSpan);
+            const shadowStrength = mountainDaylight
+                * (0.050 + 0.010 * Math.sin(mountainTime * 0.17));
+            const shadowColor = lerpColor(0x344a58, 0x172638, ni * 0.62);
+            this.drawSoftMountainPatch(
+                this.gMountainShadow,
+                shadowX1 + mountainParallaxX,
+                174 + mountainFxY + Math.sin(mountainTime * 0.19) * 4,
+                190 * mountainScale,
+                38 * mountainScale,
+                shadowColor,
+                shadowStrength
+            );
+            this.drawSoftMountainPatch(
+                this.gMountainShadow,
+                shadowX2 + mountainParallaxX,
+                188 + mountainFxY + Math.sin(mountainTime * 0.14 + 2.3) * 3,
+                150 * mountainScale,
+                30 * mountainScale,
+                shadowColor,
+                shadowStrength * 0.82
+            );
+
+            // A softer sun break travels at a different speed, preventing the
+            // lighting from looking like one repeating dark band.
+            const lightSpan = W + 260;
+            const lightX = -130 + ((mountainTime * 3.1 + this.dayCycleT * 210) % lightSpan);
+            const lightColor = lerpColor(0xdcecff, this.sunColor, sunNearHorizon * 0.72);
+            this.drawSoftMountainPatch(
+                this.gMountainLight,
+                lightX + mountainParallaxX,
+                178 + mountainFxY + Math.sin(mountainTime * 0.09 + 0.7) * 3,
+                230 * mountainScale,
+                34 * mountainScale,
+                lightColor,
+                mountainDaylight * (0.016 + sunNearHorizon * 0.026)
+            );
+
+            // Tiny distant birds make the scale feel inhabited. They fade at
+            // both screen edges and disappear naturally through dusk and night.
+            for (let i = 0; i < 3; i++) {
+                const progress = (mountainTime * (0.0105 + i * 0.0014) + i * 0.31) % 1;
+                const edgeFade = smoothstep(progress / 0.08)
+                    * smoothstep((1 - progress) / 0.08);
+                const birdAlpha = mountainDaylight * edgeFade * (0.24 + i * 0.045);
+                if (birdAlpha < 0.004) continue;
+
+                const bx = -24 + progress * (W + 48);
+                const by = 92 + i * 14
+                    + Math.sin(mountainTime * (0.42 + i * 0.05) + i * 1.9) * 5;
+                const wingSpan = 2.8 + i * 0.35;
+                const wingLift = Math.sin(mountainTime * (4.7 + i * 0.35) + i * 2.1) * 1.25;
+                const birdColor = lerpColor(0x18242b, 0x607080, ni * 0.45);
+                this.gMountainLife.lineStyle(1, birdColor, birdAlpha);
+                this.gMountainLife.lineBetween(bx, by, bx - wingSpan, by + 0.8 + wingLift);
+                this.gMountainLife.lineBetween(bx, by, bx + wingSpan, by + 0.8 + wingLift);
+            }
+        }
         const cityTint = lerpColor(0xffffff, this.wSky, 0.10);
         const cityAlpha = 1 - ni * 0.05;
 
@@ -1460,7 +1596,7 @@ export class Game extends Scene {
             const fa = fogFade(p.y);
             ec.sprite.setVisible(true)
                 .setPosition(p.x, p.y)
-                .setScale(p.s * 0.12)
+                .setScale(p.s * ENERGY_RENDER_SCALE)
                 .setAlpha(fa)
                 .setTint(0xffffff)
                 .setDepth(2.9 - ec.z / Z_FAR);
@@ -1482,7 +1618,7 @@ export class Game extends Scene {
                         .setAlpha(fa).setTint(0xffffff)
                         .setAngle(Math.sin(t * 3) * 14);
                 } else if (pu.type === 'shield') {
-                    const sc = 0.05 * p.s * pulse;
+                    const sc = 0.095 * p.s * pulse;
                     pu.sprite.setVisible(true).setPosition(p.x, p.y).setScale(sc)
                         .setAlpha(fa).setTint(0xffffff).setAngle(0);
                 } else {

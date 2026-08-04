@@ -1,4 +1,5 @@
 import { Scene } from 'phaser';
+import { addMenuVideoBackground, preloadMenuVideo } from '../menuVideoBackground.js';
 
 const W = 480, H = 720;
 
@@ -11,11 +12,12 @@ export class Settings extends Scene {
     constructor() { super('Settings'); }
 
     preload() {
-        this.load.image('menuBg', 'assets/EVSPEED2.png');
+        preloadMenuVideo(this);
     }
 
     create() {
-        this.add.image(W / 2, H / 2, 'menuBg').setDisplaySize(W, H).setDepth(0);
+        addMenuVideoBackground(this, W, H);
+
         const ov = this.add.graphics().setDepth(1);
         ov.fillStyle(0x000000, 0.62);
         ov.fillRect(0, 0, W, H);
