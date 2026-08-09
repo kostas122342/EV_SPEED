@@ -1,5 +1,7 @@
 import { Scene } from 'phaser';
+import { preloadGarageAssets } from '../assetManifest.js';
 import { addMenuVideoBackground, preloadMenuVideo } from '../menuVideoBackground.js';
+import { transitionToScene } from '../sceneTransition.js';
 
 const W = 480, H = 720;
 const CX1 = 118, CX2 = 362;
@@ -87,28 +89,7 @@ export class MPCarSelect extends Scene {
     constructor() { super('MPCarSelect'); }
 
     preload() {
-        this.load.image('playerCar', 'assets/CarFinal.png');
-        this.load.image('selectEv3White', 'assets/CarFinal.png');
-        this.load.image('ev3Blue',   'assets/ev3BLUE.png');
-        this.load.image('ev3Red',    'assets/ev3RED.png');
-        this.load.image('evS',       'assets/evS.png');
-        this.load.image('evsOrange', 'assets/evsORANGE.png');
-        this.load.image('evsGreen',  'assets/evsGREEN.png');
-        this.load.image('evX',       'assets/evX.png');
-        this.load.image('evxBlue',   'assets/evxBLUE.png');
-        this.load.image('evxRed',    'assets/evxRED.png');
-        this.load.image('modelY',    'assets/modelY.png');
-        this.load.image('evYWhite',  'assets/evYWHITE.png');
-        this.load.image('evYRed',    'assets/evYRED.png');
-        // Dedicated keys prevent another scene's texture cache from leaving EV Y
-        // previews mapped to Phaser's tiny missing-texture placeholder.
-        this.load.image('selectModelY',   'assets/modelY.png');
-        this.load.image('selectEvYWhite', 'assets/evYWHITE.png');
-        this.load.image('selectEvYRed',   'assets/evYRED.png');
-        this.load.image('cbt',       'assets/CBT.png');
-        this.load.image('cbtWhite',  'assets/CBTWHITE.png');
-        this.load.image('cbtPurple', 'assets/cbtPURPLE.png');
-        this.load.image('scooter',   'assets/SCOOTER.png');
+        preloadGarageAssets(this);
         preloadMenuVideo(this);
     }
 
@@ -265,11 +246,11 @@ export class MPCarSelect extends Scene {
                 localStorage.setItem('evspeed_selected_car', p1.key);
                 localStorage.setItem(`evspeed_activeColor_${p1.key}`, p1.variantKey);
                 if (this.isSingle) {
-                    this.scene.start('Game', { mp: false, carKey: p1.key });
+                    transitionToScene(this, 'Game', { mp: false, carKey: p1.key }, 'race');
                 } else {
                     const p2 = this.getPlayerCar(2);
                     localStorage.setItem(`evspeed_activeColor_${p2.key}`, p2.variantKey);
-                    this.scene.start('Game', { mp: true, player: 1, p1Score: 0, p1Car: p1.key, p2Car: p2.key, p1Color: p1.variantKey, p2Color: p2.variantKey, p1Name: this.p1DriverName, p2Name: this.p2DriverName });
+                    transitionToScene(this, 'Game', { mp: true, player: 1, p1Score: 0, p1Car: p1.key, p2Car: p2.key, p1Color: p1.variantKey, p2Color: p2.variantKey, p1Name: this.p1DriverName, p2Name: this.p2DriverName }, 'race');
                 }
             });
 
@@ -280,7 +261,7 @@ export class MPCarSelect extends Scene {
         }).setOrigin(0.5).setDepth(10).setInteractive({ useHandCursor: true });
         backTxt.on('pointerover',  () => backTxt.setColor('#aabbcc'));
         backTxt.on('pointerout',   () => backTxt.setColor('#667788'));
-        backTxt.on('pointerdown',  () => this.scene.start('Menu'));
+        backTxt.on('pointerdown',  () => transitionToScene(this, 'Menu'));
     }
 
     drawCard(gfx, cx, borderCol) {

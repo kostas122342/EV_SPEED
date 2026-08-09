@@ -1,9 +1,13 @@
 import { Game as MainGame } from './scenes/Game';
+import { Loading } from './scenes/Loading';
+import { Transition } from './scenes/Transition';
+import { MenuBackground } from './menuVideoBackground.js';
 import { Menu } from './scenes/Menu';
 import { Capsule } from './scenes/Capsule';
 import { Shop } from './scenes/Shop';
 import { MPCarSelect } from './scenes/MPCarSelect';
 import { Settings } from './scenes/Settings';
+import { Achievements } from './scenes/Achievements';
 import { AUTO, Scale, Game, GameObjects } from 'phaser';
 
 // Use the bundled display font everywhere Arial Black was requested, instead
@@ -63,7 +67,7 @@ const config = {
     width: 480,
     height: 720,
     parent: 'game-container',
-    backgroundColor: '#028af8',
+    backgroundColor: '#000000',
     pixelArt: false,
     scale: {
         mode: Scale.FIT,
@@ -74,12 +78,16 @@ const config = {
         mouse: { preventDefaultWheel: true }
     },
     scene: [
+        Loading,
+        Transition,
+        MenuBackground,
         Menu,
         MainGame,
         Capsule,
         Shop,
         MPCarSelect,
-        Settings
+        Settings,
+        Achievements
     ]
 };
 

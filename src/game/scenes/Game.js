@@ -1,4 +1,7 @@
 import { Scene, Textures } from 'phaser';
+import { preloadGameplayAssets } from '../assetManifest.js';
+import { transitionToScene } from '../sceneTransition.js';
+import { recordEnergyCollected, recordMaxSpeed, recordRaceStarted } from '../achievements.js';
 
 const W = 480, H = 720;
 const HORIZON_Y = 180;
@@ -163,45 +166,11 @@ export class Game extends Scene {
     constructor() { super('Game'); }
 
     preload() {
-        this.load.image('playerCar', 'assets/CarFinal.png');
-        this.load.image('ev3Blue',   'assets/ev3BLUE.png');
-        this.load.image('ev3Red',    'assets/ev3RED.png');
-        this.load.image('P1',        'assets/P1.png');
-        this.load.image('enemyCityEv', 'assets/enemyCityEv.png');
-        this.load.image('evS',       'assets/evS.png');
-        this.load.image('evsOrange', 'assets/evsORANGE.png');
-        this.load.image('evsGreen',  'assets/evsGREEN.png');
-        this.load.image('evX',       'assets/evX.png');
-        this.load.image('evxBlue',   'assets/evxBLUE.png');
-        this.load.image('evxRed',    'assets/evxRED.png');
-        this.load.image('modelY',    'assets/modelY.png');
-        this.load.image('evYWhite',  'assets/evYWHITE.png');
-        this.load.image('evYRed',    'assets/evYRED.png');
-        // Gameplay-only EV Y keys avoid stale/missing textures cached by other scenes.
-        this.load.image('gameModelY',   'assets/modelY.png');
-        this.load.image('gameEvYWhite', 'assets/evYWHITE.png');
-        this.load.image('gameEvYRed',   'assets/evYRED.png');
-        this.load.image('cbt',       'assets/CBT.png');
-        this.load.image('cbtWhite',  'assets/CBTWHITE.png');
-        this.load.image('cbtPurple', 'assets/cbtPURPLE.png');
-        this.load.image('scooter',   'assets/SCOOTER.png');
-        this.load.image('obstacle',   'assets/obstacle.png');
-        this.load.image('truck',      'assets/Truck.png');
-        this.load.image('energyLogo', 'assets/En4.png');
-        this.load.image('energyCoin', 'assets/Energy.png');
-        this.load.image('bombItem',   'assets/bomb.png');
-        this.load.image('clearItem',  'assets/CLEAR.png');
-        this.load.image('shieldIcon', 'assets/shieldIcon.png');
-        this.load.image('tree',       'assets/tree.png');
-        this.load.image('mountainLayer',   'assets/mountain-layer.png');
-        this.load.image('forestCityLayer', 'assets/forest-city-layer.png');
-        this.load.audio('energyBeat', 'assets/energyBeat.mp3');
-        this.load.audio('bombBeat',   'assets/bombBeat.mp3');
-        this.load.audio('lazerBeat',   'assets/lazerBeat.mp3');
-        this.load.audio('countdown',   'assets/countdown.mp3');
+        preloadGameplayAssets(this);
     }
 
     create() {
+        recordRaceStarted();
         this.ensureShieldTexture();
         this.textures.get('energyLogo').setFilter(Textures.FilterMode.LINEAR);
         const mpData     = this.scene.settings.data || {};
@@ -508,7 +477,10 @@ export class Game extends Scene {
         const homeZone = this.add.zone(W - 38, H - 38, 52, 52).setInteractive().setDepth(11);
         homeZone.on('pointerover',  () => drawHomeBg(true));
         homeZone.on('pointerout',   () => drawHomeBg(false));
-        homeZone.on('pointerdown',  () => { this.homeDown = true; this.scene.start('Menu'); });
+        homeZone.on('pointerdown',  () => {
+            this.homeDown = true;
+            transitionToScene(this, 'Menu');
+        });
 
         // Power-up buttons (bottom-left)
         this.puClrGfx = this.add.graphics().setDepth(9);
@@ -755,6 +727,7 @@ export class Game extends Scene {
                 this.energy++;
                 this.tEn.setText(': ' + this.energy);
                 const prev = parseInt(localStorage.getItem('evspeed_energy') || '0');
+                recordEnergyCollected();
                 localStorage.setItem('evspeed_energy', prev + 1);
                 const sp = proj(LANE_CENTERS[ec.lane], Math.max(ec.z, 1));
                 for (let k = 0; k < 12; k++) {
@@ -868,7 +841,12 @@ export class Game extends Scene {
         }
 
         this.tSc.setText('SCORE: ' + this.score);
-        this.tSp.setText(Math.min(200, Math.floor(100 + (this.spd - 350) / 5)) + ' KM/H');
+        const currentSpeedKmh = Math.min(200, Math.floor(100 + (this.spd - 350) / 5));
+        this.tSp.setText(currentSpeedKmh + ' KM/H');
+        if (currentSpeedKmh > (this.lastRecordedSpeed || 0)) {
+            this.lastRecordedSpeed = currentSpeedKmh;
+            recordMaxSpeed(currentSpeedKmh);
+        }
 
         // Continuous sunset → night → sunrise cycle.
         this.dayCycleT = (this.dayCycleT + dt / DAY_CYCLE_SECONDS) % 1;
@@ -1956,7 +1934,7 @@ export class Game extends Scene {
                     stroke: '#000000', strokeThickness: 4
                 }).setOrigin(0.5).setDepth(22);
                 this.time.delayedCall(2500, () => {
-                    this.scene.start('Game', { mp: true, player: 2, p1Score, p1Car: this.mpP1Car, p2Car: this.mpP2Car, p1Color: this.mpP1Color, p2Color: this.mpP2Color, p1Name: this.mpP1Name, p2Name: this.mpP2Name });
+                    transitionToScene(this, 'Game', { mp: true, player: 2, p1Score, p1Car: this.mpP1Car, p2Car: this.mpP2Car, p1Color: this.mpP1Color, p2Color: this.mpP2Color, p1Name: this.mpP1Name, p2Name: this.mpP2Name }, 'race');
                 });
             } else {
                 this.time.delayedCall(600, () => this.showLeaderboard(this.mpP1Score, this.score));
@@ -2010,8 +1988,12 @@ export class Game extends Scene {
         });
 
         this.time.delayedCall(400, () => {
-            this.input.once('pointerdown', () => { if (!this.homeDown) this.scene.restart(); });
-            this.input.keyboard.once('keydown', () => this.scene.restart());
+            this.input.once('pointerdown', () => {
+                if (!this.homeDown) transitionToScene(this, 'Game', this.scene.settings.data || {}, 'race');
+            });
+            this.input.keyboard.once('keydown', () => {
+                transitionToScene(this, 'Game', this.scene.settings.data || {}, 'race');
+            });
         });
     }
 
@@ -2074,8 +2056,8 @@ export class Game extends Scene {
         };
 
         makeBtn(W / 2, 560, 260, '🔄  REMATCH',  0x880000, 0xcc2222,
-            () => this.scene.start('Game', { mp: true, player: 1, p1Score: 0, p1Car: this.mpP1Car, p2Car: this.mpP2Car, p1Color: this.mpP1Color, p2Color: this.mpP2Color, p1Name: this.mpP1Name, p2Name: this.mpP2Name }));
+            () => transitionToScene(this, 'Game', { mp: true, player: 1, p1Score: 0, p1Car: this.mpP1Car, p2Car: this.mpP2Car, p1Color: this.mpP1Color, p2Color: this.mpP2Color, p1Name: this.mpP1Name, p2Name: this.mpP2Name }, 'race'));
         makeBtn(W / 2, 638, 260, '← MAIN MENU', 0x333333, 0x555555,
-            () => this.scene.start('Menu'));
+            () => transitionToScene(this, 'Menu'));
     }
 }

@@ -1,23 +1,27 @@
 import { Scene, Textures } from 'phaser';
+import { preloadMenuAssets } from '../assetManifest.js';
 import { addMenuVideoBackground, preloadMenuVideo } from '../menuVideoBackground.js';
+import { transitionToScene } from '../sceneTransition.js';
+import { getAchievementSnapshot } from '../achievements.js';
 
 const W = 480, H = 720;
+const MENU_BUTTON_CENTER_Y = 374;
+const MENU_BUTTON_SPACING = 60;
+const MENU_BUTTON_TEXT_LAYOUT = { emoji: -27, label: -5 };
+const SHOP_BUTTON_TEXT_LAYOUT = { emoji: -32, label: -10 };
+const SETTINGS_BUTTON_TEXT_LAYOUT = { emoji: -37, label: -5 };
 
 export class Menu extends Scene {
     constructor() { super('Menu'); }
 
     preload() {
         preloadMenuVideo(this);
-        this.load.image('playerCar', 'assets/CarFinal.png');
-        this.load.image('energyLogo', 'assets/En4.png');
-        this.load.audio('bgMusic',  'assets/EvSong.mp3');
-        this.load.image('infoClear',  'assets/CLEAR.png');
-        this.load.image('infoBomb',   'assets/bomb.png');
-        this.load.image('infoShield', 'assets/shieldIcon.png');
+        preloadMenuAssets(this);
     }
 
     create() {
         this.textures.get('energyLogo').setFilter(Textures.FilterMode.LINEAR);
+        const achievementSnapshot = getAchievementSnapshot();
         const totalEnergy = parseInt(localStorage.getItem('evspeed_energy') || '0');
 
         const musicOn = localStorage.getItem('evspeed_music') !== 'false';
@@ -44,7 +48,7 @@ export class Menu extends Scene {
 
         const energyIcon = this.add.image(W - 135, 37, 'energyLogo')
             .setOrigin(0.5, 0.5).setScale(0.38).setDepth(3);
-        this.menuGroup.add(energyTxt);
+        this.menuGroup.add(energyIcon);
 
         // Info button top-left
         const infoBg = this.add.graphics().setDepth(3);
@@ -59,18 +63,76 @@ export class Menu extends Scene {
         this.add.zone(28, 36, 40, 40).setInteractive({ useHandCursor: true }).setDepth(5)
             .on('pointerdown', () => this.showInfoOverlay());
 
+        this.makeAchievementsTab(this.menuGroup, achievementSnapshot);
+
         // START button
-        this.makeButton(W / 2, 308, 210, 48, '▶  START', () => {
+        this.makeButton(W / 2, MENU_BUTTON_CENTER_Y - MENU_BUTTON_SPACING, 210, 48, '▶  START', () => {
             this.showModeSelect();
-        }, undefined, this.menuGroup);
+        }, undefined, this.menuGroup, MENU_BUTTON_TEXT_LAYOUT);
 
-        this.makeButton(W / 2, 374, 210, 48, '🛒  SHOP', () => {
-            this.scene.start('Shop');
-        }, [0x004488, 0x0055aa, 0x2288cc], this.menuGroup, { emoji: -44, label: -10 });
+        this.makeButton(W / 2, MENU_BUTTON_CENTER_Y, 210, 48, '🛒  SHOP', () => {
+            transitionToScene(this, 'Shop', {}, 'garage');
+        }, [0x004488, 0x0055aa, 0x2288cc], this.menuGroup, SHOP_BUTTON_TEXT_LAYOUT);
 
-        this.makeButton(W / 2, 440, 210, 48, '⚙️  SETTINGS', () => {
-            this.scene.start('Settings');
-        }, [0x333344, 0x444466, 0x6666aa], this.menuGroup, { emoji: -60, label: -10 });
+        this.makeButton(W / 2, MENU_BUTTON_CENTER_Y + MENU_BUTTON_SPACING, 210, 48, '⚙️  SETTINGS', () => {
+            transitionToScene(this, 'Settings');
+        }, [0x333344, 0x444466, 0x6666aa], this.menuGroup, SETTINGS_BUTTON_TEXT_LAYOUT);
+    }
+
+    makeAchievementsTab(group, snapshot) {
+        const { completed, total } = snapshot;
+        const x = 52, y = 17, width = 190, height = 38;
+        const centerY = y + height / 2;
+        const panel = this.add.graphics().setDepth(3);
+
+        const draw = hover => {
+            panel.clear();
+            panel.fillStyle(0x000000, 0.48);
+            panel.fillRoundedRect(x + 2, y + 3, width, height, 11);
+            panel.fillStyle(hover ? 0x142238 : 0x07111f, hover ? 0.96 : 0.88);
+            panel.fillRoundedRect(x, y, width, height, 11);
+            panel.fillStyle(0xffffff, hover ? 0.10 : 0.055);
+            panel.fillRoundedRect(x + 2, y + 2, width - 4, 15, { tl: 9, tr: 9, bl: 2, br: 2 });
+            panel.lineStyle(1.4, hover ? 0xffd85a : 0xd89a24, hover ? 1 : 0.78);
+            panel.strokeRoundedRect(x, y, width, height, 11);
+            panel.fillStyle(0xffbd2f, 0.95);
+            panel.fillRoundedRect(x + 8, y + height - 4, width - 16, 2, 1);
+
+            panel.fillStyle(0x5b3900, 0.95);
+            panel.fillCircle(x + 19, centerY, 13);
+            panel.lineStyle(1, 0xffd45a, 0.95);
+            panel.strokeCircle(x + 19, centerY, 13);
+
+            panel.fillStyle(completed > 0 ? 0x0d5a43 : 0x11233a, 1);
+            panel.fillRoundedRect(x + width - 42, y + 8, 34, 22, 8);
+            panel.lineStyle(1, completed > 0 ? 0x56f2b2 : 0x2cbfe8, 0.7);
+            panel.strokeRoundedRect(x + width - 42, y + 8, 34, 22, 8);
+        };
+        draw(false);
+
+        const trophy = this.add.text(x + 19, centerY, '🏆', {
+            fontFamily: 'Arial Black', fontSize: 15,
+        }).setOrigin(0.5).setDepth(4);
+        const label = this.add.text(x + 38, centerY, 'ACHIEVEMENTS', {
+            fontFamily: 'Arial Black', fontSize: 11,
+            color: '#f7fbff', letterSpacing: 0.4,
+        }).setOrigin(0, 0.5).setDepth(4);
+        const count = this.add.text(x + width - 25, centerY, `${completed}/${total}`, {
+            fontFamily: 'Arial Black', fontSize: 9,
+            color: completed > 0 ? '#78ffc5' : '#6fe4ff',
+        }).setOrigin(0.5).setDepth(4);
+        const zone = this.add.zone(x + width / 2, centerY, width, height)
+            .setInteractive({ useHandCursor: true })
+            .setDepth(5)
+            .on('pointerover', () => draw(true))
+            .on('pointerout', () => draw(false))
+            .on('pointerdown', () => transitionToScene(this, 'Achievements'));
+
+        group.add(panel);
+        group.add(trophy);
+        group.add(label);
+        group.add(count);
+        group.add(zone);
     }
 
     showModeSelect() {
@@ -96,15 +158,15 @@ export class Menu extends Scene {
         }).setOrigin(0.5).setDepth(11);
 
         this.makeModalButton(W / 2, H / 2 - 20, 240, 56, '👤  1 PLAYER',
-            () => this.scene.start('MPCarSelect', { mode: 'single' }),
+            () => transitionToScene(this, 'MPCarSelect', { mode: 'single' }, 'garage'),
             [0x880000, 0xaa0000, 0xdd2222]);
 
         this.makeModalButton(W / 2, H / 2 + 60, 240, 56, '👥  2 PLAYERS',
-            () => this.scene.start('MPCarSelect', { mode: 'multi' }),
+            () => transitionToScene(this, 'MPCarSelect', { mode: 'multi' }, 'garage'),
             [0x005533, 0x007744, 0x22aa66]);
 
         this.makeModalButton(W / 2, H / 2 + 148, 160, 44, '← BACK',
-            () => this.scene.restart(),
+            () => transitionToScene(this, 'Menu'),
             [0x333333, 0x555555, 0x777777]);
     }
 
@@ -169,12 +231,12 @@ export class Menu extends Scene {
         if (splitParts) {
             const eo = textOffsetX.emoji || 0, lo = textOffsetX.label || 0;
             const emojiTxt = this.add.text(x + eo - 28, y, splitParts[1], {
-                fontFamily: 'Arial Black', fontSize: 26,
+                fontFamily: 'Arial Black', fontSize: textOffsetX.emojiFontSize || 26,
                 color: '#ffffff', stroke: '#000000', strokeThickness: 4,
                 fontStyle: 'italic'
             }).setOrigin(0.5).setDepth(3);
             txt = this.add.text(x + lo + 28, y, splitParts[2], {
-                fontFamily: 'Arial Black', fontSize: 26,
+                fontFamily: 'Arial Black', fontSize: textOffsetX.labelFontSize || 26,
                 color: '#ffffff', stroke: '#000000', strokeThickness: 4,
                 fontStyle: 'italic'
             }).setOrigin(0.5).setDepth(3);
@@ -276,7 +338,7 @@ export class Menu extends Scene {
                 btn.fillStyle(topCol, 1);
                 btn.fillRoundedRect(bx + 2, by + 2, bw - 4, bh / 2, { tl: 12, tr: 12, bl: 0, br: 0 });
             });
-            zone.on('pointerdown', () => this.scene.start('Capsule'));
+            zone.on('pointerdown', () => transitionToScene(this, 'Capsule', {}, 'capsule'));
         }
 
         this.addShine(bx, by, bw, bh);

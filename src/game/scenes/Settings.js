@@ -1,5 +1,6 @@
 import { Scene } from 'phaser';
 import { addMenuVideoBackground, preloadMenuVideo } from '../menuVideoBackground.js';
+import { transitionToScene } from '../sceneTransition.js';
 
 const W = 480, H = 720;
 
@@ -120,6 +121,6 @@ export class Settings extends Scene {
         const backZone = this.add.zone(bx, by, bw, bh).setInteractive().setDepth(11);
         backZone.on('pointerover',  () => drawBack(true));
         backZone.on('pointerout',   () => drawBack(false));
-        backZone.on('pointerdown',  () => this.scene.start('Menu'));
+        backZone.on('pointerdown',  () => transitionToScene(this, 'Menu'));
     }
 }

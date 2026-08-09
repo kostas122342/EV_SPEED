@@ -1,5 +1,7 @@
 import { Scene } from 'phaser';
+import { preloadGarageAssets } from '../assetManifest.js';
 import { addMenuVideoBackground, preloadMenuVideo } from '../menuVideoBackground.js';
+import { transitionToScene } from '../sceneTransition.js';
 
 const W = 480, H = 720;
 
@@ -67,30 +69,8 @@ export class Shop extends Scene {
     constructor() { super('Shop'); }
 
     preload() {
-        this.load.image('playerCar',  'assets/CarFinal.png');
-        this.load.image('ev3Blue',    'assets/ev3BLUE.png');
-        this.load.image('ev3Red',     'assets/ev3RED.png');
-        this.load.image('evS',        'assets/evS.png');
-        this.load.image('evsOrange',  'assets/evsORANGE.png');
-        this.load.image('evsGreen',   'assets/evsGREEN.png');
-        this.load.image('evX',        'assets/evX.png');
-        this.load.image('evxBlue',    'assets/evxBLUE.png');
-        this.load.image('evxRed',     'assets/evxRED.png');
-        this.load.image('modelY',     'assets/modelY.png');
-        this.load.image('evYWhite',   'assets/evYWHITE.png');
-        this.load.image('evYRed',     'assets/evYRED.png');
-        this.load.image('shopModelY',   'assets/modelY.png');
-        this.load.image('shopEvYWhite', 'assets/evYWHITE.png');
-        this.load.image('shopEvYRed',   'assets/evYRED.png');
-        this.load.image('cbt',        'assets/CBT.png');
-        this.load.image('cbtWhite',   'assets/CBTWHITE.png');
-        this.load.image('cbtPurple',  'assets/cbtPURPLE.png');
-        this.load.image('scooter',    'assets/SCOOTER.png');
+        preloadGarageAssets(this);
         preloadMenuVideo(this);
-        this.load.image('energyLogo', 'assets/En45.png');
-        this.load.image('shopBomb',   'assets/bomb.png');
-        this.load.image('shopClear',  'assets/CLEAR.png');
-        this.load.image('shieldIcon', 'assets/shieldIcon.png');
     }
 
     create() {
@@ -170,7 +150,7 @@ export class Shop extends Scene {
             const activeTextureKey = activeVariantDef?.previewKey || activeColorKey;
             const carImg = this.add.image(cx + initOffX, cy + initOffY, activeTextureKey)
                 .setScale(initScale).setOrigin(0.5);
-            if (!owned) carImg.setTint(0x222222);
+            if (!owned) carImg.setTint(0x666666);
             this.cont.add(carImg);
             if (car.colors) carImages[car.key] = carImg;
 
@@ -178,7 +158,7 @@ export class Shop extends Scene {
             let lockOverlay = null, lockTxt = null;
             if (!owned) {
                 lockOverlay = this.add.graphics();
-                lockOverlay.fillStyle(0x000000, 0.50);
+                lockOverlay.fillStyle(0x000000, 0.40);
                 lockOverlay.fillRoundedRect(cx - CARD_W / 2 + 4, cy - CARD_H / 2 + 4, CARD_W - 8, CARD_H - 8, 11);
                 this.cont.add(lockOverlay);
                 lockTxt = this.add.text(cx, cy + CARD_H / 2 - 38, 'LOCKED', {
@@ -658,7 +638,7 @@ export class Shop extends Scene {
             // Back button
             if (Math.abs(x - bx) <= bw / 2 && Math.abs(y - by) <= bh / 2) {
                 drawBack(false);
-                this.scene.start('Menu');
+                transitionToScene(this, 'Menu');
                 return true;
             }
 

@@ -1,4 +1,6 @@
 import { Scene } from 'phaser';
+import { preloadCapsuleAssets } from '../assetManifest.js';
+import { transitionToScene } from '../sceneTransition.js';
 
 const W = 480, H = 720;
 const SPACING   = 110;
@@ -9,10 +11,7 @@ export class Capsule extends Scene {
     constructor() { super('Capsule'); }
 
     preload() {
-        this.load.image('car2',    'assets/carRed.png');
-        this.load.image('evS',     'assets/evS.png');
-        this.load.image('evX',     'assets/evX.png');
-        this.load.image('modelY',  'assets/modelY.png');
+        preloadCapsuleAssets(this);
     }
 
     create() {
@@ -258,8 +257,8 @@ export class Capsule extends Scene {
                     stroke: '#000000', strokeThickness: 3
                 }).setOrigin(0.5).setDepth(6);
                 this.tweens.add({ targets: cont, alpha: 0.2, duration: 500, yoyo: true, repeat: -1 });
-                this.input.once('pointerdown', () => this.scene.start('Menu'));
-                this.input.keyboard.once('keydown', () => this.scene.start('Menu'));
+                this.input.once('pointerdown', () => transitionToScene(this, 'Menu'));
+                this.input.keyboard.once('keydown', () => transitionToScene(this, 'Menu'));
             });
         });
     }
