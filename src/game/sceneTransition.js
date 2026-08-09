@@ -4,7 +4,7 @@ import { stopMenuVideoBackgroundForTarget } from './menuVideoBackground.js';
 export function transitionToScene(scene, target, targetData = {}, kind = 'quick') {
     if (scene.evspeedTransitioning) return;
 
-    if (!hasMissingTransitionAssets(scene, kind)) {
+    if (!hasMissingTransitionAssets(scene, kind, targetData)) {
         stopMenuVideoBackgroundForTarget(scene, target);
         scene.scene.start(target, targetData);
         return;

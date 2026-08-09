@@ -273,7 +273,7 @@ export class Transition extends Scene {
     }
 
     startAssetLoading() {
-        const queuedFiles = preloadTransitionAssets(this, this.kind);
+        const queuedFiles = preloadTransitionAssets(this, this.kind, this.targetData);
 
         if (queuedFiles === 0) {
             this.assetsReady = true;

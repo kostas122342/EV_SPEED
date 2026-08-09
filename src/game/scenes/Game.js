@@ -1,5 +1,10 @@
 import { Scene, Textures } from 'phaser';
-import { preloadGameplayAssets } from '../assetManifest.js';
+import {
+    getPlayerPseudo3DConfig,
+    preloadGameplayAssets,
+    pruneUnusedPlayerPseudo3DTextures,
+    resolveGameplayPlayerVariant,
+} from '../assetManifest.js';
 import { transitionToScene } from '../sceneTransition.js';
 import { recordEnergyCollected, recordMaxSpeed, recordRaceStarted } from '../achievements.js';
 
@@ -49,8 +54,8 @@ const PLAYER_HITBOX_FAMILY = {
 // These dimensions come from the non-transparent pixels of each enemy asset,
 // with only a small amount of forgiving horizontal padding.
 const ENEMY_TYPES = [
-    { key: 'P1',          renderScale: 0.20, originY: 0.74, hitHalfW: 60, hitTop: 115, hitBottom: 13 },
-    { key: 'enemyCityEv', renderScale: 0.18, originY: 0.76, hitHalfW: 60, hitTop: 117, hitBottom: 12 },
+    { key: 'enemyP1Pseudo3d',   renderScale: 0.280, originY: 0.87, hitHalfW: 60, hitTop: 115, hitBottom: 13 },
+    { key: 'enemyCityPseudo3d', renderScale: 0.320, originY: 0.87, hitHalfW: 75, hitTop: 146, hitBottom: 15 },
 ];
 const CITY_LAYER_VARIANTS = [
     { swapped: false, size: 1.00, side: 40,  ground: 0 },
@@ -166,7 +171,7 @@ export class Game extends Scene {
     constructor() { super('Game'); }
 
     preload() {
-        preloadGameplayAssets(this);
+        preloadGameplayAssets(this, this.scene.settings.data || {});
     }
 
     create() {
@@ -278,24 +283,22 @@ export class Game extends Scene {
         const mpCarKey = this.mp ? (this.mpPlayer === 1 ? mpData.p1Car : mpData.p2Car) : (mpData.carKey || null);
         const selectedCar = mpCarKey || localStorage.getItem('evspeed_selected_car') || 'playerCar';
         this.selectedCar = selectedCar;
-        const CAR_SCALES = { playerCar: 0.32, ev3Blue: 0.277, ev3Red: 0.279, evS: 0.17, evsOrange: 0.17, evsGreen: 0.17, evX: 0.114, evxBlue: 0.114, evxRed: 0.114, modelY: 0.1365, evYWhite: 0.1365, evYRed: 0.1365, cbt: 0.16, cbtWhite: 0.16, cbtPurple: 0.16, scooter: 0.11 };
-        const VARIANT_DEFAULTS = { playerCar: 'playerCar', modelY: 'evYWhite', evS: 'evS', evX: 'evX', cbt: 'cbtWhite' };
-        let carTextureKey = selectedCar;
-        if (VARIANT_DEFAULTS[selectedCar]) {
-            const mpColor = this.mp ? (this.mpPlayer === 1 ? mpData.p1Color : mpData.p2Color) : null;
-            carTextureKey = mpColor || localStorage.getItem(`evspeed_activeColor_${selectedCar}`) || VARIANT_DEFAULTS[selectedCar];
-        }
-        this.playerVariantKey = carTextureKey;
-        const GAME_TEXTURE_KEYS = {
-            modelY: 'gameModelY',
-            evYWhite: 'gameEvYWhite',
-            evYRed: 'gameEvYRed',
-        };
-        carTextureKey = GAME_TEXTURE_KEYS[carTextureKey] || carTextureKey;
-        this.playerSprite = this.add.image(this.px, H - 140, carTextureKey)
-            .setScale(CAR_SCALES[this.playerVariantKey] ?? CAR_SCALES[selectedCar] ?? 0.32)
-            .setOrigin(0.5, 0.76)
+        this.playerVariantKey = resolveGameplayPlayerVariant(mpData);
+        this.playerPseudo3D = getPlayerPseudo3DConfig(this.playerVariantKey);
+        this.playerTextureKey = this.playerPseudo3D.textureKey;
+        pruneUnusedPlayerPseudo3DTextures(this, this.playerTextureKey);
+        this.playerBaseScale = this.playerPseudo3D.scale;
+        this.isPseudo3DPlayer = true;
+        this.pseudo3dAngle = 0;
+        this.playerSprite = this.add.sprite(this.px, H - 140, this.playerTextureKey, 0)
+            .setScale(this.playerBaseScale)
+            .setOrigin(0.5, 0.78)
             .setDepth(3.5);
+        this.pseudo3dBlendSprite = this.add.sprite(this.px, H - 140, this.playerTextureKey, 0)
+            .setScale(this.playerBaseScale)
+            .setOrigin(0.5, 0.78)
+            .setDepth(3.51)
+            .setAlpha(0);
 
         const uiBg = this.add.graphics().setDepth(8);
         uiBg.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.52, 0, 0.52);
@@ -357,7 +360,7 @@ export class Game extends Scene {
                     hitTop: enemyType.hitTop,
                     hitBottom: enemyType.hitBottom,
                 };
-                e.sprite = this.add.image(0, 0, enemyType.key)
+                e.sprite = this.add.sprite(0, 0, enemyType.key, 0)
                     .setOrigin(0.5, enemyType.originY).setDepth(2.5).setVisible(false);
                 this.enemies.push(e);
             }
@@ -374,8 +377,19 @@ export class Game extends Scene {
                 if (free.length === 0) return;
                 const lane = free[Math.floor(Math.random() * free.length)];
                 const obstKey = Math.random() < 0.5 ? 'obstacle' : 'truck';
-                const o = { z: Z_FAR, lane, type: obstKey };
-                o.sprite = this.add.image(0, 0, obstKey).setOrigin(0.5, obstKey === 'truck' ? 0.82 : 0.5).setDepth(2.5).setVisible(false);
+                const o = {
+                    z: Z_FAR,
+                    lane,
+                    type: obstKey,
+                    hitHalfW: obstKey === 'truck' ? 68 : 32,
+                    hitTop: obstKey === 'truck' ? 160 : 20,
+                    hitBottom: obstKey === 'truck' ? 18 : 20,
+                };
+                o.sprite = obstKey === 'truck'
+                    ? this.add.sprite(0, 0, 'truckPseudo3d', 0)
+                        .setOrigin(0.5, 0.875).setDepth(2.5).setVisible(false)
+                    : this.add.image(0, 0, obstKey)
+                        .setOrigin(0.5).setDepth(2.5).setVisible(false);
                 this.obstacles.push(o);
             }
         }});
@@ -552,8 +566,13 @@ export class Game extends Scene {
         const family = PLAYER_HITBOX_FAMILY[hitboxKey] || hitboxKey;
         const profile = PLAYER_HITBOXES[family] || PLAYER_HITBOXES.playerCar;
         const lean = family === 'scooter' ? Math.sin(this.carRot || 0) : 0;
+        const pseudo3dWidth = this.isPseudo3DPlayer
+            ? Math.min(1, Math.abs(this.pseudo3dAngle || 0) / this.playerPseudo3D.maxFrame)
+            : 0;
         const centerX = this.px + lean * (profile.leanCenterShift || 0);
-        const halfW = profile.halfW + Math.abs(lean) * (profile.leanHalfWGain || 0);
+        const halfW = profile.halfW
+            + Math.abs(lean) * (profile.leanHalfWGain || 0)
+            + pseudo3dWidth * (this.playerPseudo3D.hitboxGain ?? 9);
 
         return {
             left: centerX - halfW,
@@ -561,6 +580,37 @@ export class Game extends Scene {
             top: profile.topY,
             bottom: profile.bottomY,
         };
+    }
+
+    updatePseudo3DVisual() {
+        const maxFrame = this.playerPseudo3D.maxFrame;
+        const angle = Math.max(-maxFrame, Math.min(maxFrame, this.pseudo3dAngle || 0));
+        const absoluteAngle = Math.abs(angle);
+        const lowerFrame = Math.floor(absoluteAngle);
+        const upperFrame = Math.min(maxFrame, lowerFrame + 1);
+        const frameProgress = absoluteAngle - lowerFrame;
+        const blend = frameProgress * frameProgress * (3 - 2 * frameProgress);
+        const flipped = angle < 0;
+        const rotation = -(angle / maxFrame) * (this.playerPseudo3D.rotation || 0);
+        const visualX = this.px
+            - (angle / maxFrame) * this.playerPseudo3D.inset;
+
+        this.playerSprite
+            .setFrame(lowerFrame)
+            .setFlipX(flipped)
+            .setX(visualX)
+            .setRotation(rotation)
+            .setScale(this.playerBaseScale)
+            .setAlpha(1 - blend);
+
+        if (!this.pseudo3dBlendSprite) return;
+        this.pseudo3dBlendSprite
+            .setFrame(upperFrame)
+            .setFlipX(flipped)
+            .setX(visualX)
+            .setRotation(rotation)
+            .setScale(this.playerBaseScale)
+            .setAlpha(blend);
     }
 
     go(d) {
@@ -578,7 +628,23 @@ export class Game extends Scene {
         this.lane = nl;
         this.moveDir = d;
 
-        if (this.selectedCar === 'scooter') {
+        if (this.isPseudo3DPlayer) {
+            const maxFrame = this.playerPseudo3D.maxFrame;
+            const targetAngle = [-maxFrame, 0, maxFrame][nl];
+            this.laneTween = this.tweens.add({
+                targets: this,
+                px: laneX(nl),
+                pseudo3dAngle: targetAngle,
+                duration: 160,
+                ease: 'Sine.easeInOut',
+                onComplete: () => {
+                    this.moving = false;
+                    this.laneTween = null;
+                    this.pseudo3dAngle = targetAngle;
+                    this.updatePseudo3DVisual();
+                }
+            });
+        } else if (this.selectedCar === 'scooter') {
             const leanAngle   = d * 0.28;
             const settleAngle = [0.26, 0, -0.26][nl];
             this.laneTween = this.tweens.add({
@@ -815,11 +881,12 @@ export class Game extends Scene {
         for (let oi = this.obstacles.length - 1; oi >= 0; oi--) {
             const o = this.obstacles[oi];
             const op = proj(LANE_CENTERS[o.lane], Math.max(o.z, 1));
-            const obstacleHalfW = 32 * op.s;
-            const obstacleHalfH = 20 * op.s;
+            const obstacleHalfW = o.hitHalfW * op.s;
+            const obstacleTop = o.hitTop * op.s;
+            const obstacleBottom = o.hitBottom * op.s;
             if (
-                op.y + obstacleHalfH <= playerHitbox.top ||
-                op.y - obstacleHalfH >= playerHitbox.bottom ||
+                op.y + obstacleBottom <= playerHitbox.top ||
+                op.y - obstacleTop >= playerHitbox.bottom ||
                 op.x + obstacleHalfW <= playerHitbox.left ||
                 op.x - obstacleHalfW >= playerHitbox.right
             ) continue;
@@ -1542,13 +1609,15 @@ export class Game extends Scene {
             const p = proj(LANE_CENTERS[e.lane], e.z);
             if (p.y < HORIZON_Y || p.y > H + 80) { e.sprite.setVisible(false); continue; }
             const fa = fogFade(p.y);
-            const laneRot = [0.26, 0, -0.26];
+            const sideFrame = e.lane === 1 ? 0 : 2;
             e.sprite.setVisible(true)
                 .setPosition(p.x, p.y)
+                .setFrame(sideFrame)
+                .setFlipX(e.lane === 0)
                 .setScale(p.s * e.renderScale)
                 .setAlpha(fa)
                 .setTint(0xffffff)
-                .setRotation(laneRot[e.lane])
+                .setRotation(0)
                 .setDepth(3 - e.z / Z_FAR);
         }
 
@@ -1558,9 +1627,16 @@ export class Game extends Scene {
             const p = proj(LANE_CENTERS[o.lane], o.z);
             if (p.y < HORIZON_Y || p.y > H + 80) { o.sprite.setVisible(false); continue; }
             const fa = fogFade(p.y);
+            const isTruck = o.type === 'truck';
+            if (isTruck) {
+                o.sprite
+                    .setFrame(o.lane === 1 ? 0 : 2)
+                    .setFlipX(o.lane === 2)
+                    .setRotation(0);
+            }
             o.sprite.setVisible(true)
                 .setPosition(p.x, p.y)
-                .setScale(p.s * (o.type === 'truck' ? 0.18 : 0.25))
+                .setScale(p.s * (isTruck ? 0.395 : 0.25))
                 .setAlpha(fa)
                 .setTint(0xffffff)
                 .setDepth(3 - o.z / Z_FAR);
@@ -1647,7 +1723,11 @@ export class Game extends Scene {
             this.gCar.fillRect(0, 0, W, H);
         }
 
-        this.playerSprite.setX(this.px).setRotation(this.carRot);
+        if (this.isPseudo3DPlayer) {
+            this.updatePseudo3DVisual();
+        } else {
+            this.playerSprite.setX(this.px).setRotation(this.carRot);
+        }
     }
 
     drawCar(g, cx, cy, sc, col, alpha = 1) {
@@ -1909,6 +1989,18 @@ export class Game extends Scene {
     }
 
     die() {
+        // Freeze the car exactly at the impact point. Without cancelling the
+        // active lane tween, its onComplete callback can still snap the car to
+        // the destination lane after the rest of the gameplay has stopped.
+        if (this.laneTween) {
+            this.laneTween.stop();
+            this.laneTween = null;
+        }
+        this.tweens.killTweensOf(this);
+        this.moving = false;
+        if (this.isPseudo3DPlayer) this.updatePseudo3DVisual();
+        else this.playerSprite.setX(this.px).setRotation(this.carRot);
+
         this.over = true;
         this.shieldT = 0;
         if (this.shieldGfx) this.shieldGfx.clear();
