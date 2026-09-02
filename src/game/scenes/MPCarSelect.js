@@ -25,7 +25,7 @@ const ALL_CARS = [
     { key: 'playerCar', name: 'EV 3',    unlockKey: null,              scale: 0.27, offY: -85, offX: 1 },
     { key: 'modelY',    name: 'EV Y',    unlockKey: 'evspeed_carY',    scale: 0.10, offY: -12, offX: 0 },
     { key: 'evS',       name: 'EV S',    unlockKey: 'evspeed_evS',     scale: 0.14, offY: -18, offX: 0 },
-    { key: 'evX',       name: 'EV X',    unlockKey: 'evspeed_evX',     scale: 0.10, offY: -18, offX: 0 },
+    { key: 'evX',       name: 'EV X',    unlockKey: 'evspeed_evX',     scale: 0.09, offY: -18, offX: 0 },
     { key: 'cbt',       name: 'CBT',     unlockKey: 'evspeed_cbt',     scale: 0.12, offY: -18, offX: 0 },
     { key: 'scooter',   name: 'SCOOTER', unlockKey: 'evspeed_scooter', scale: 0.10, offY: -15, offX: 0 },
 ];

@@ -17,6 +17,13 @@ const LANE_CENTERS = [-ROAD_HW * 0.67, 0, ROAD_HW * 0.67];
 const DASH_LEN = 80, DASH_GAP = 80, DASH_P = DASH_LEN + DASH_GAP;
 const SCAN = 3;
 const SHIELD_DURATION_SECONDS = 4;
+const RUSH_ESCAPE_LOOKAHEAD_SECONDS = 1.8;
+const RUSH_ESCAPE_TARGET_Z = 620;
+const RUSH_ESCAPE_Z_START_SPEED = 30;
+const RUSH_ESCAPE_Z_SPEED = 220;
+const RUSH_ESCAPE_Z_ACCELERATION = 170;
+const RUSH_ESCAPE_GRACE_SECONDS = 0.35;
+const RUSH_RECOVERY_ACCELERATION = 0.55;
 const ENERGY_RENDER_SCALE = 0.12;
 const ENERGY_COLLECTION_LEAD_PX = 8;
 // Non-transparent bounds of Energy.png relative to its centred 1254x1254 canvas.
@@ -595,6 +602,21 @@ export class Game extends Scene {
         const visualX = this.px
             - (angle / maxFrame) * this.playerPseudo3D.inset;
 
+        // Independently rendered color variants do not share pixel-identical
+        // silhouettes between adjacent angles. Display one nearest frame at a
+        // time so cross-fading cannot produce doubled perspective outlines.
+        if (this.playerPseudo3D.crossFade === false) {
+            this.playerSprite
+                .setFrame(Math.round(absoluteAngle))
+                .setFlipX(flipped)
+                .setX(visualX)
+                .setRotation(rotation)
+                .setScale(this.playerBaseScale)
+                .setAlpha(1);
+            this.pseudo3dBlendSprite?.setAlpha(0);
+            return;
+        }
+
         this.playerSprite
             .setFrame(lowerFrame)
             .setFlipX(flipped)
@@ -680,6 +702,30 @@ export class Game extends Scene {
         }
     }
 
+    rushEnemyBlocksOnlyEscape(enemy) {
+        const minDangerZ = Z_NEAR - 40;
+        const maxDangerZ = Z_NEAR + this.spd * RUSH_ESCAPE_LOOKAHEAD_SECONDS;
+        const isDangerSoon = lane => (
+            this.obstacles.some(o =>
+                o.lane === lane && o.z >= minDangerZ && o.z <= maxDangerZ
+            ) ||
+            this.enemies.some(other =>
+                other !== enemy &&
+                other.lane === lane &&
+                other.z >= minDangerZ && other.z <= maxDangerZ
+            )
+        );
+
+        // The parallel car only needs to yield when the player's lane is also
+        // becoming unsafe and every immediately reachable escape lane is closed.
+        const playerLaneBlocked = enemy.lane === this.lane || isDangerSoon(this.lane);
+        if (!playerLaneBlocked) return false;
+
+        const adjacentLanes = [this.lane - 1, this.lane + 1]
+            .filter(lane => lane >= 0 && lane < LANE_CENTERS.length);
+        return !adjacentLanes.some(lane => lane !== enemy.lane && !isDangerSoon(lane));
+    }
+
     update(time, delta) {
         if (this.over) return;
         const dt = delta / 1000;
@@ -714,7 +760,41 @@ export class Game extends Scene {
                 } else if (e.rushPhase === 'stop') {
                     // almost stopped — player passes it
                     e.speedMul = 0.04;
-                    if (e.rushT >= 2.8) { e.rushPhase = 'idle'; e.rushT = 0; e.speedMul = 1.0; }
+                    if (this.rushEnemyBlocksOnlyEscape(e)) {
+                        // Drive away from the player and reopen the lane before
+                        // an approaching obstacle can create an unavoidable wall.
+                        e.rushPhase = 'escape';
+                        e.rushT = 0;
+                        e.escapeZSpeed = RUSH_ESCAPE_Z_START_SPEED;
+                    } else if (e.rushT >= 2.8) {
+                        e.rushPhase = 'idle'; e.rushT = 0; e.speedMul = 1.0;
+                    }
+                } else if (e.rushPhase === 'escape') {
+                    // Start slowly to create a demanding timing window, then
+                    // accelerate so the opening does not become a hard lock.
+                    if (e.rushT > RUSH_ESCAPE_GRACE_SECONDS) {
+                        e.escapeZSpeed = Math.min(
+                            RUSH_ESCAPE_Z_SPEED,
+                            e.escapeZSpeed + RUSH_ESCAPE_Z_ACCELERATION * dt
+                        );
+                    }
+                    e.speedMul = -e.escapeZSpeed / Math.max(this.spd, 1);
+                    if (e.z >= RUSH_ESCAPE_TARGET_Z) {
+                        e.rushPhase = 'recover';
+                        e.rushT = 0;
+                    }
+                } else if (e.rushPhase === 'recover') {
+                    // Blend back into normal traffic speed so the enemy does
+                    // not snap direction when it has opened a safe gap.
+                    e.speedMul = Math.min(
+                        1.0,
+                        e.speedMul + RUSH_RECOVERY_ACCELERATION * dt
+                    );
+                    if (e.speedMul >= 1.0) {
+                        e.rushPhase = 'idle';
+                        e.rushT = 0;
+                        e.speedMul = 1.0;
+                    }
                 }
             }
             e.z = Math.min(Z_FAR - 1, e.z - this.spd * e.speedMul * dt);
@@ -724,8 +804,8 @@ export class Game extends Scene {
                 this.enemies.splice(i, 1);
                 enemyRemoved = true;
             }
-            // Crash: obstacle hits stopped enemy during rush
-            if (!enemyRemoved && e.rushPhase === 'stop') {
+            // Crash effect whenever the moving/rushing enemy reaches an obstacle.
+            if (!enemyRemoved && e.rushPhase !== 'idle') {
                 for (let oi = this.obstacles.length - 1; oi >= 0; oi--) {
                     const o = this.obstacles[oi];
                     if (o.lane === e.lane && Math.abs(e.z - o.z) < 130) {
@@ -1393,10 +1473,13 @@ export class Game extends Scene {
             const hw = ROAD_HW * sc;
             const cx = W / 2;
 
-            // Road surface: alternating stripes where stable, solid blend near horizon
+            // Road surface: fade the stable near-road stripes in gradually so
+            // their first scanline cannot form a full-width brightness seam.
             if (dy > 74) {
                 const seg = (Math.floor((z + this.dist) / 120) & 1);
-                g.fillStyle(seg ? 0x606060 : 0x4e4e4e, 1);
+                const stripeColor = seg ? 0x606060 : 0x4e4e4e;
+                const stripeBlend = smoothstep((dy - 74) / 42);
+                g.fillStyle(lerpColor(0x565656, stripeColor, stripeBlend), 1);
             } else {
                 g.fillStyle(0x565656, 1);
             }
@@ -1415,27 +1498,25 @@ export class Game extends Scene {
             g.fillRect(cx - hw - cw, y, cw, SCAN);
             g.fillRect(cx + hw,      y, cw, SCAN);
 
-            // Side ground texture: use stable frequencies per zone
+            // Side ground texture: the two frequencies fade in independently.
+            // Previously both zone thresholds produced a visible horizontal band.
             const zd = z + this.dist;
-            if (dy > 113) {
-                const t3 = (Math.floor(zd / 51)  & 1);
-                const t4 = (Math.floor(zd / 130) & 1);
-                if (this.theme === 'city') {
-                    g.fillStyle(t4 ? 0x787e86 : t3 ? 0x72787e : 0x6a7078, 1);
-                } else {
-                    const gc = this.wGrass;
-                    g.fillStyle(t4 ? lerpColor(gc, 0x000000, 0.11) : t3 ? lerpColor(gc, 0x000000, 0.06) : gc, 1);
-                }
-            } else if (dy > 71) {
-                const t4 = (Math.floor(zd / 130) & 1);
-                if (this.theme === 'city') {
-                    g.fillStyle(t4 ? 0x787e86 : 0x6a7078, 1);
-                } else {
-                    const gc = this.wGrass;
-                    g.fillStyle(t4 ? lerpColor(gc, 0x000000, 0.11) : gc, 1);
-                }
+            const t3 = (Math.floor(zd / 51) & 1);
+            const t4 = (Math.floor(zd / 130) & 1);
+            const t4Blend = smoothstep((dy - 71) / 48);
+            const t3Blend = smoothstep((dy - 113) / 42);
+            if (this.theme === 'city') {
+                const cityBase = 0x6a7078;
+                const cityTexture = t4
+                    ? lerpColor(cityBase, 0x787e86, t4Blend)
+                    : t3
+                        ? lerpColor(cityBase, 0x72787e, t3Blend)
+                        : cityBase;
+                g.fillStyle(cityTexture, 1);
             } else {
-                g.fillStyle(this.theme === 'city' ? 0x6a7078 : this.wGrass, 1);
+                const gc = this.wGrass;
+                const darken = t4 ? 0.11 * t4Blend : t3 ? 0.06 * t3Blend : 0;
+                g.fillStyle(lerpColor(gc, 0x000000, darken), 1);
             }
             g.fillRect(0,            y, cx - hw - cw, SCAN);
             g.fillRect(cx + hw + cw, y, W - (cx + hw + cw), SCAN);
