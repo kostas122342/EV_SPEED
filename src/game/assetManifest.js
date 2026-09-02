@@ -47,6 +47,7 @@ const GAMEPLAY_IMAGES = [
     ['gameEvYRed', 'assets/evYRED.png'],
     ['obstacle', 'assets/obstacle.png'],
     ['energyCoin', 'assets/Energy.png'],
+    ['energyBar', 'assets/energy-bar.png'],
     ['bombItem', 'assets/bomb.png'],
     ['clearItem', 'assets/CLEAR.png'],
     ['tree', 'assets/tree.png'],
@@ -72,7 +73,7 @@ export const PLAYER_PSEUDO3D_CONFIGS = {
     cbtWhite:   { textureKey: 'cbtPseudo3dWhite', path: 'assets/cbt-pseudo3d-white-rendered.webp', scale: 0.270, maxFrame: 3, inset: 11, crossFade: false },
     cbt:        { textureKey: 'cbtPseudo3dGrey',  path: 'assets/cbt-pseudo3d-grey.webp',  scale: 0.270, maxFrame: 3, inset: 11 },
     cbtPurple:  { textureKey: 'cbtPseudo3dPurple',path: 'assets/cbt-pseudo3d-purple-rendered.webp',scale: 0.270, maxFrame: 3, inset: 11, crossFade: false },
-    scooter:    { textureKey: 'scooterPseudo3d',  path: 'assets/scooter-pseudo3d.webp',   scale: 0.222, maxFrame: 3, inset: 10 },
+    scooter:    { textureKey: 'scooterPseudo3d',  path: 'assets/scooter-pseudo3d.webp',   scale: 0.222, maxFrame: 3, laneAngle: 1, inset: 10, reverseFlip: true, crossFade: false },
 };
 
 const GAMEPLAY_SPRITESHEETS = [

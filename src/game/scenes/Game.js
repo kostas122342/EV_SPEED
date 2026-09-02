@@ -17,6 +17,13 @@ const LANE_CENTERS = [-ROAD_HW * 0.67, 0, ROAD_HW * 0.67];
 const DASH_LEN = 80, DASH_GAP = 80, DASH_P = DASH_LEN + DASH_GAP;
 const SCAN = 3;
 const SHIELD_DURATION_SECONDS = 4;
+const DRIVE_ENERGY_MAX = 100;
+const DRIVE_ENERGY_DRAIN_PER_SECOND = 10;
+const ENERGY_POINT_RECHARGE = 3.2;
+const ENERGY_BAR_SCALE = 0.46;
+const ENERGY_BAR_X = 46;
+const ENERGY_BAR_Y = 250;
+const ENERGY_BAR_SOURCE_FILL = { left: 184, top: 74, width: 40, height: 326 };
 const RUSH_ESCAPE_LOOKAHEAD_SECONDS = 1.8;
 const RUSH_ESCAPE_TARGET_Z = 620;
 const RUSH_ESCAPE_Z_START_SPEED = 30;
@@ -42,7 +49,8 @@ const PLAYER_HITBOXES = {
     cbt:       { halfW: 14, topY: H - 212, bottomY: H - 115 },
     scooter:   {
         halfW: 17,
-        topY: H - 216,
+        topY: H - 180,
+        pickupTopY: H - 176,
         bottomY: H - 115,
         leanCenterShift: 30,
         leanHalfWGain: 14
@@ -107,7 +115,7 @@ function energyOverlapsPlayer(energy, playerHitbox, playerLane) {
     const bounds = ENERGY_OPAQUE_BOUNDS;
 
     return (
-        p.y + bounds.bottom * scale > playerHitbox.top - ENERGY_COLLECTION_LEAD_PX &&
+        p.y + bounds.bottom * scale > (playerHitbox.pickupTop ?? playerHitbox.top) - ENERGY_COLLECTION_LEAD_PX &&
         p.y + bounds.top * scale < playerHitbox.bottom
     );
 }
@@ -211,6 +219,8 @@ export class Game extends Scene {
         this.treePool  = []; // grows lazily, sprites never destroyed
         this.score   = 0;
         this.energy  = 0;
+        this.driveEnergy = DRIVE_ENERGY_MAX;
+        this.displayDriveEnergy = DRIVE_ENERGY_MAX;
         this.over    = false;
         this.homeDown = false;
         this.powerups     = {
@@ -333,6 +343,16 @@ export class Game extends Scene {
             fontFamily: 'Arial', fontSize: 18, color: '#ffff00',
             stroke: '#000000', strokeThickness: 3
         }).setOrigin(0, 0).setDepth(9);
+
+        this.energyBarFrame = this.add.image(ENERGY_BAR_X, ENERGY_BAR_Y, 'energyBar')
+            .setScale(ENERGY_BAR_SCALE)
+            .setDepth(8.9);
+        this.energyBarEmpty = this.add.graphics().setDepth(9);
+        this.energyBarPercent = this.add.text(ENERGY_BAR_X, 116, '100%', {
+            fontFamily: 'Arial Black', fontSize: 13, color: '#62efff',
+            stroke: '#00152d', strokeThickness: 3
+        }).setOrigin(0.5).setDepth(9.1);
+        this.updateDriveEnergyBar();
 
 
         this.keys = this.input.keyboard.createCursorKeys();
@@ -585,8 +605,33 @@ export class Game extends Scene {
             left: centerX - halfW,
             right: centerX + halfW,
             top: profile.topY,
+            pickupTop: profile.pickupTopY ?? profile.topY,
             bottom: profile.bottomY,
         };
+    }
+
+    updateDriveEnergyBar() {
+        if (!this.energyBarEmpty) return;
+
+        const fill = ENERGY_BAR_SOURCE_FILL;
+        const imageHalfW = this.energyBarFrame.width / 2;
+        const imageHalfH = this.energyBarFrame.height / 2;
+        const fillX = ENERGY_BAR_X + (fill.left - imageHalfW) * ENERGY_BAR_SCALE;
+        const fillY = ENERGY_BAR_Y + (fill.top - imageHalfH) * ENERGY_BAR_SCALE;
+        const fillW = fill.width * ENERGY_BAR_SCALE;
+        const fillH = fill.height * ENERGY_BAR_SCALE;
+        const ratio = Math.max(0, Math.min(1, this.displayDriveEnergy / DRIVE_ENERGY_MAX));
+        const emptyH = fillH * (1 - ratio);
+
+        this.energyBarEmpty.clear();
+        if (emptyH > 0.5) {
+            this.energyBarEmpty.fillStyle(0x020817, 0.94);
+            this.energyBarEmpty.fillRect(fillX, fillY, fillW, emptyH);
+        }
+
+        const percent = Math.round(this.driveEnergy);
+        this.energyBarPercent.setText(`${percent}%`);
+        this.energyBarPercent.setColor(percent <= 20 ? '#ff554f' : percent <= 45 ? '#ffd43b' : '#62efff');
     }
 
     updatePseudo3DVisual() {
@@ -597,7 +642,9 @@ export class Game extends Scene {
         const upperFrame = Math.min(maxFrame, lowerFrame + 1);
         const frameProgress = absoluteAngle - lowerFrame;
         const blend = frameProgress * frameProgress * (3 - 2 * frameProgress);
-        const flipped = angle < 0;
+        // The scooter sheet was rendered from the opposite side compared with
+        // the car sheets, so its outer-lane perspective needs the inverse flip.
+        const flipped = this.playerPseudo3D.reverseFlip ? angle > 0 : angle < 0;
         const rotation = -(angle / maxFrame) * (this.playerPseudo3D.rotation || 0);
         const visualX = this.px
             - (angle / maxFrame) * this.playerPseudo3D.inset;
@@ -652,7 +699,8 @@ export class Game extends Scene {
 
         if (this.isPseudo3DPlayer) {
             const maxFrame = this.playerPseudo3D.maxFrame;
-            const targetAngle = [-maxFrame, 0, maxFrame][nl];
+            const laneAngle = this.playerPseudo3D.laneAngle ?? maxFrame;
+            const targetAngle = [-laneAngle, 0, laneAngle][nl];
             this.laneTween = this.tweens.add({
                 targets: this,
                 px: laneX(nl),
@@ -736,6 +784,22 @@ export class Game extends Scene {
         if (ld && !this.lk) this.go(-1);
         if (rd && !this.rk) this.go(1);
         this.lk = ld; this.rk = rd;
+
+        if (this.started) {
+            this.driveEnergy = Math.max(
+                0,
+                this.driveEnergy - DRIVE_ENERGY_DRAIN_PER_SECOND * dt
+            );
+            const energyBlend = 1 - Math.exp(-8 * dt);
+            this.displayDriveEnergy += (this.driveEnergy - this.displayDriveEnergy) * energyBlend;
+            this.updateDriveEnergyBar();
+            if (this.driveEnergy <= 0) {
+                this.displayDriveEnergy = 0;
+                this.updateDriveEnergyBar();
+                this.die('energy');
+                return;
+            }
+        }
 
         this.dist   += this.spd * dt;
         this.spd     = Math.min(1800, 350 + Math.sqrt(this.score) * 8);
@@ -871,6 +935,10 @@ export class Game extends Scene {
                 ec.sprite.setVisible(false);
                 this.playSfx('energyBeat', { volume: 0.25 });
                 this.energy++;
+                this.driveEnergy = Math.min(
+                    DRIVE_ENERGY_MAX,
+                    this.driveEnergy + ENERGY_POINT_RECHARGE
+                );
                 this.tEn.setText(': ' + this.energy);
                 const prev = parseInt(localStorage.getItem('evspeed_energy') || '0');
                 recordEnergyCollected();
@@ -2069,7 +2137,7 @@ export class Game extends Scene {
         }
     }
 
-    die() {
+    die(reason = 'crash') {
         // Freeze the car exactly at the impact point. Without cancelling the
         // active lane tween, its onComplete callback can still snap the car to
         // the destination lane after the rest of the gameplay has stopped.
@@ -2124,7 +2192,7 @@ export class Game extends Scene {
         bx.fillStyle(0x000000, 0.75);
         bx.fillRoundedRect(W / 2 - 150, H / 2 - boxH / 2, 300, boxH, 10);
 
-        this.add.text(W / 2, H / 2 - boxH / 2 + 38, 'GAME OVER', {
+        this.add.text(W / 2, H / 2 - boxH / 2 + 38, reason === 'energy' ? 'OUT OF ENERGY' : 'GAME OVER', {
             fontFamily: 'Arial Black', fontSize: 34, color: '#ff4444',
             stroke: '#000000', strokeThickness: 6
         }).setOrigin(0.5).setDepth(22);
