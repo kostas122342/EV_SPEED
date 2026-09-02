@@ -1,9 +1,9 @@
 const MENU_IMAGES = [
-    ['playerCar', 'assets/CarFinal.png'],
-    ['energyLogo', 'assets/En4.png'],
-    ['infoClear', 'assets/CLEAR.png'],
-    ['infoBomb', 'assets/bomb.png'],
-    ['infoShield', 'assets/shieldIcon.png'],
+    ['playerCar', 'assets/CarFinal.webp'],
+    ['energyLogo', 'assets/En4.webp'],
+    ['infoClear', 'assets/CLEAR.webp'],
+    ['infoBomb', 'assets/bomb.webp'],
+    ['infoShield', 'assets/shieldIcon.webp'],
 ];
 
 const MENU_AUDIO = [
@@ -11,48 +11,45 @@ const MENU_AUDIO = [
 ];
 
 const GARAGE_IMAGES = [
-    ['playerCar', 'assets/CarFinal.png'],
-    ['selectEv3White', 'assets/CarFinal.png'],
-    ['ev3Blue', 'assets/ev3BLUE.png'],
-    ['ev3Red', 'assets/ev3RED.png'],
-    ['evS', 'assets/evS.png'],
-    ['evsOrange', 'assets/evsORANGE.png'],
-    ['evsGreen', 'assets/evsGREEN.png'],
-    ['evX', 'assets/evX.png'],
-    ['evxBlue', 'assets/evxBLUE.png'],
-    ['evxRed', 'assets/evxRED.png'],
-    ['modelY', 'assets/modelY.png'],
-    ['evYWhite', 'assets/evYWHITE.png'],
-    ['evYRed', 'assets/evYRED.png'],
-    ['selectModelY', 'assets/modelY.png'],
-    ['selectEvYWhite', 'assets/evYWHITE.png'],
-    ['selectEvYRed', 'assets/evYRED.png'],
-    ['shopModelY', 'assets/modelY.png'],
-    ['shopEvYWhite', 'assets/evYWHITE.png'],
-    ['shopEvYRed', 'assets/evYRED.png'],
-    ['cbt', 'assets/CBT.png'],
-    ['cbtWhite', 'assets/CBTWHITE.png'],
-    ['cbtPurple', 'assets/cbtPURPLE.png'],
-    ['scooter', 'assets/SCOOTER.png'],
-    ['shopBomb', 'assets/bomb.png'],
-    ['shopClear', 'assets/CLEAR.png'],
-    ['shieldIcon', 'assets/shieldIcon.png'],
+    ['playerCar', 'assets/CarFinal.webp'],
+    ['selectEv3White', 'assets/CarFinal.webp'],
+    ['ev3Blue', 'assets/ev3BLUE.webp'],
+    ['ev3Red', 'assets/ev3RED.webp'],
+    ['evS', 'assets/evS.webp'],
+    ['evsOrange', 'assets/evsORANGE.webp'],
+    ['evsGreen', 'assets/evsGREEN.webp'],
+    ['evX', 'assets/evX.webp'],
+    ['evxBlue', 'assets/evxBLUE.webp'],
+    ['evxRed', 'assets/evxRED.webp'],
+    ['modelY', 'assets/modelY.webp'],
+    ['evYWhite', 'assets/evYWHITE.webp'],
+    ['evYRed', 'assets/evYRED.webp'],
+    ['selectModelY', 'assets/modelY.webp'],
+    ['selectEvYWhite', 'assets/evYWHITE.webp'],
+    ['selectEvYRed', 'assets/evYRED.webp'],
+    ['shopModelY', 'assets/modelY.webp'],
+    ['shopEvYWhite', 'assets/evYWHITE.webp'],
+    ['shopEvYRed', 'assets/evYRED.webp'],
+    ['cbt', 'assets/CBT.webp'],
+    ['cbtWhite', 'assets/CBTWHITE.webp'],
+    ['cbtPurple', 'assets/cbtPURPLE.webp'],
+    ['scooter', 'assets/SCOOTER.webp'],
+    ['shopBomb', 'assets/bomb.webp'],
+    ['shopClear', 'assets/CLEAR.webp'],
+    ['shieldIcon', 'assets/shieldIcon.webp'],
 ];
 
 const GAMEPLAY_IMAGES = [
-    ['P1', 'assets/P1.png'],
-    ['enemyCityEv', 'assets/enemyCityEv.png'],
-    ['gameModelY', 'assets/modelY.png'],
-    ['gameEvYWhite', 'assets/evYWHITE.png'],
-    ['gameEvYRed', 'assets/evYRED.png'],
-    ['obstacle', 'assets/obstacle.png'],
-    ['energyCoin', 'assets/Energy.png'],
-    ['energyBar', 'assets/energy-bar.png'],
-    ['bombItem', 'assets/bomb.png'],
-    ['clearItem', 'assets/CLEAR.png'],
-    ['tree', 'assets/tree.png'],
-    ['mountainLayer', 'assets/mountain-layer.png'],
-    ['forestCityLayer', 'assets/forest-city-layer.png'],
+    ['energyLogo', 'assets/En4.webp'],
+    ['shieldIcon', 'assets/shieldIcon.webp'],
+    ['obstacle', 'assets/obstacle.webp'],
+    ['energyCoin', 'assets/Energy.webp'],
+    ['energyBar', 'assets/energy-bar.webp'],
+    ['bombItem', 'assets/bomb.webp'],
+    ['clearItem', 'assets/CLEAR.webp'],
+    ['tree', 'assets/tree.webp'],
+    ['mountainLayer', 'assets/mountain-layer.webp'],
+    ['forestCityLayer', 'assets/forest-city-layer.webp'],
 ];
 
 const PSEUDO3D_FRAME_CONFIG = { frameWidth: 400, frameHeight: 540 };
@@ -132,7 +129,7 @@ const GAMEPLAY_AUDIO = [
 ];
 
 const CAPSULE_IMAGES = [
-    ['car2', 'assets/carRed.png'],
+    ['car2', 'assets/carRed.webp'],
 ];
 
 function queueImages(scene, assets) {
@@ -188,11 +185,18 @@ export function preloadGarageAssets(scene) {
 }
 
 export function preloadGameplayAssets(scene, data = {}) {
-    return preloadGarageAssets(scene)
-        + queueImages(scene, GAMEPLAY_IMAGES)
+    return queueImages(scene, GAMEPLAY_IMAGES)
         + queueSpritesheets(scene, GAMEPLAY_SPRITESHEETS)
         + queueSpritesheets(scene, [selectedPlayerSpritesheet(data)])
         + queueAudio(scene, GAMEPLAY_AUDIO);
+}
+
+export function getGameplayTextureKeys(data = {}) {
+    return [
+        ...GAMEPLAY_IMAGES.map(([key]) => key),
+        ...GAMEPLAY_SPRITESHEETS.map(([key]) => key),
+        selectedPlayerSpritesheet(data)[0],
+    ];
 }
 
 export function preloadCapsuleAssets(scene) {
@@ -211,8 +215,7 @@ export function hasMissingTransitionAssets(scene, kind, targetData = {}) {
         return countMissingImages(scene, GARAGE_IMAGES) > 0;
     }
     if (kind === 'race') {
-        return countMissingImages(scene, GARAGE_IMAGES)
-            + countMissingImages(scene, GAMEPLAY_IMAGES)
+        return countMissingImages(scene, GAMEPLAY_IMAGES)
             + countMissingImages(scene, GAMEPLAY_SPRITESHEETS)
             + countMissingImages(scene, [selectedPlayerSpritesheet(targetData)])
             + countMissingAudio(scene, GAMEPLAY_AUDIO) > 0;

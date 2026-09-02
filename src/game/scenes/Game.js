@@ -16,6 +16,10 @@ const ROAD_HW = 280;
 const LANE_CENTERS = [-ROAD_HW * 0.67, 0, ROAD_HW * 0.67];
 const DASH_LEN = 80, DASH_GAP = 80, DASH_P = DASH_LEN + DASH_GAP;
 const SCAN = 3;
+// Sky, mountains and distant city move far more slowly than the road. Keeping
+// their geometry cached avoids rebuilding hundreds of Graphics commands every
+// display frame, while all gameplay objects continue to render at full speed.
+const SLOW_ENVIRONMENT_FRAME_MS = 50;
 const SHIELD_DURATION_SECONDS = 4;
 const DRIVE_ENERGY_MAX = 100;
 const DRIVE_ENERGY_DRAIN_PER_SECOND = 10;
@@ -33,7 +37,7 @@ const RUSH_ESCAPE_GRACE_SECONDS = 0.35;
 const RUSH_RECOVERY_ACCELERATION = 0.55;
 const ENERGY_RENDER_SCALE = 0.12;
 const ENERGY_COLLECTION_LEAD_PX = 8;
-// Non-transparent bounds of Energy.png relative to its centred 1254x1254 canvas.
+// Non-transparent bounds of Energy.webp relative to its centred 1254x1254 canvas.
 // Using these bounds prevents the transparent padding from collecting early.
 const ENERGY_OPAQUE_BOUNDS = { left: -257, right: 327, top: -413, bottom: 463 };
 // Player hitboxes deliberately remain a little forgiving, but every collision
@@ -1195,23 +1199,31 @@ export class Game extends Scene {
         // Objects emerge from fog: invisible inside fog, fully visible by y=260
         const fogFade = (py) => smoothstep((py - HORIZON_Y - 30) / 50);
 
-        this.gBg.clear();
-        this.gSkyFx.clear();
-        this.gMountainShadow.clear();
-        this.gMountainLight.clear();
-        this.gMountainLife.clear();
-        this.gHill.clear();
+        const environmentNow = this.time?.now ?? 0;
+        const refreshSlowEnvironment = this.lastSlowEnvironmentRedraw == null
+            || environmentNow - this.lastSlowEnvironmentRedraw >= SLOW_ENVIRONMENT_FRAME_MS;
+        const ni = this.wNight;
+
         this.gRoad.clear();
-        this.gFog.clear();
         this.gCity.clear();
         this.gEnv.clear();
         this.gNight.clear();
         this.gHorizonLights.clear();
         this.gCar.clear();
 
-        // Sky
-        this.gBg.fillStyle(this.wSky, 1);
-        this.gBg.fillRect(0, 0, W, HORIZON_Y);
+        if (refreshSlowEnvironment) {
+            this.lastSlowEnvironmentRedraw = environmentNow;
+            this.gBg.clear();
+            this.gSkyFx.clear();
+            this.gMountainShadow.clear();
+            this.gMountainLight.clear();
+            this.gMountainLife.clear();
+            this.gHill.clear();
+            this.gFog.clear();
+
+            // Sky
+            this.gBg.fillStyle(this.wSky, 1);
+            this.gBg.fillRect(0, 0, W, HORIZON_Y);
 
         // A subtle vertical atmosphere keeps every phase from reading as one
         // flat solid color. The warm lower band becomes strongest only while
@@ -1320,7 +1332,6 @@ export class Game extends Scene {
 
         // Layered high-resolution pseudo-3D environment. The mountains use a
         // very slow forward-distance parallax; city banks move at road depth.
-        const ni = this.wNight;
         const mountainTime = this.mountainLifeT;
         const mountainApproach = 0.5 - 0.5 * Math.cos(this.dist * 0.00045);
         const mountainScale = 1 + mountainApproach * 0.04;
@@ -1521,6 +1532,8 @@ export class Game extends Scene {
             this.gFog.fillStyle(fogColor, fogAlpha * 0.55);
             this.gFog.fillEllipse(leftEnd, city.groundY, fogHalfH * 2.4, fogHalfH * 1.6);
             this.gFog.fillEllipse(rightStart, city.groundY, fogHalfH * 2.4, fogHalfH * 1.6);
+        }
+
         }
 
         // Road scanlines. Safe flicker thresholds (dz/scanline < 0.5*period):

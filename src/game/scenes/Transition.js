@@ -1,5 +1,5 @@
 import { Scene } from 'phaser';
-import { preloadTransitionAssets } from '../assetManifest.js';
+import { getGameplayTextureKeys, preloadTransitionAssets } from '../assetManifest.js';
 import { stopMenuVideoBackgroundForTarget } from '../menuVideoBackground.js';
 
 const W = 480;
@@ -276,15 +276,12 @@ export class Transition extends Scene {
         const queuedFiles = preloadTransitionAssets(this, this.kind, this.targetData);
 
         if (queuedFiles === 0) {
-            this.assetsReady = true;
-            this.finishWithoutLoader();
+            this.prepareLoadedAssets();
             return;
         }
 
         this.load.once('complete', () => {
-            this.assetsReady = true;
-            if (this.loaderVisible) this.completeIfReady();
-            else this.finishWithoutLoader();
+            this.prepareLoadedAssets();
         });
         this.load.on('loaderror', () => {
             this.loadingError = true;
@@ -292,6 +289,35 @@ export class Transition extends Scene {
             else this.statusText.setText('RECOVERING ASSET STREAM').setColor('#ff647b');
         });
         this.load.start();
+    }
+
+    prepareLoadedAssets() {
+        if (this.kind !== 'race') {
+            this.markAssetsReady();
+            return;
+        }
+
+        // Touch every race texture in a nearly invisible render pass. WebGL
+        // uploads the texture atlas here, during the transition, instead of on
+        // the first gameplay frame or when the first obstacle spawns.
+        const warmupObjects = getGameplayTextureKeys(this.targetData)
+            .filter(key => this.textures.exists(key))
+            .map((key, index) => this.add.image(W / 2, H / 2, key)
+                .setScale(0.002)
+                .setAlpha(0.001)
+                .setDepth(900 + index * 0.001));
+
+        // Keep them alive for two frames so the renderer processes the batch.
+        this.time.delayedCall(48, () => {
+            warmupObjects.forEach(object => object.destroy());
+            this.markAssetsReady();
+        });
+    }
+
+    markAssetsReady() {
+        this.assetsReady = true;
+        if (this.loaderVisible) this.completeIfReady();
+        else this.finishWithoutLoader();
     }
 
     finishWithoutLoader() {
