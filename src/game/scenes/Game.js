@@ -158,10 +158,10 @@ const DAY_CYCLE_KEYS = [
     { t: 0.00, sky: 0x78c9ed, grass: 0x4a8c3f, night: 0.00, sunX: 240, sunY: 54,  sunAlpha: 1.00, sun: 0xfff2ad },
     { t: 0.18, sky: 0x82c9e5, grass: 0x4c873c, night: 0.00, sunX: 245, sunY: 78,  sunAlpha: 1.00, sun: 0xffdf8b },
     { t: 0.34, sky: 0xe47745, grass: 0x596b32, night: 0.20, sunX: 254, sunY: 160, sunAlpha: 1.00, sun: 0xffa94b },
-    { t: 0.42, sky: 0x5b456f, grass: 0x293a27, night: 0.62, sunX: 258, sunY: 205, sunAlpha: 0.08, sun: 0xff7b3d },
-    { t: 0.48, sky: 0x07152e, grass: 0x111b16, night: 1.00, sunX: 258, sunY: 230, sunAlpha: 0.00, sun: 0xff6a35 },
-    { t: 0.67, sky: 0x07152e, grass: 0x111b16, night: 1.00, sunX: 222, sunY: 230, sunAlpha: 0.00, sun: 0xff6a35 },
-    { t: 0.73, sky: 0x493b65, grass: 0x243228, night: 0.68, sunX: 222, sunY: 205, sunAlpha: 0.10, sun: 0xff8745 },
+    { t: 0.42, sky: 0x65567b, grass: 0x33472f, night: 0.56, sunX: 258, sunY: 205, sunAlpha: 0.08, sun: 0xff7b3d },
+    { t: 0.48, sky: 0x102b4a, grass: 0x1d3328, night: 1.00, sunX: 258, sunY: 230, sunAlpha: 0.00, sun: 0xff6a35 },
+    { t: 0.67, sky: 0x102b4a, grass: 0x1d3328, night: 1.00, sunX: 222, sunY: 230, sunAlpha: 0.00, sun: 0xff6a35 },
+    { t: 0.73, sky: 0x5c4e73, grass: 0x30432f, night: 0.61, sunX: 222, sunY: 205, sunAlpha: 0.10, sun: 0xff8745 },
     { t: 0.84, sky: 0xe68455, grass: 0x596e35, night: 0.18, sunX: 228, sunY: 145, sunAlpha: 1.00, sun: 0xffba62 },
     { t: 0.94, sky: 0x7bcbed, grass: 0x4a8c3f, night: 0.00, sunX: 237, sunY: 72,  sunAlpha: 1.00, sun: 0xffe99b },
     { t: 1.00, sky: 0x78c9ed, grass: 0x4a8c3f, night: 0.00, sunX: 240, sunY: 54,  sunAlpha: 1.00, sun: 0xfff2ad },
@@ -1233,7 +1233,7 @@ export class Game extends Scene {
             * (1 - smoothstep((this.wNight - 0.72) / 0.22));
         const upperSkyTint = lerpColor(
             this.wSky,
-            this.wNight > 0.45 ? 0x06102b : 0x254c78,
+            this.wNight > 0.45 ? 0x0a1c38 : 0x254c78,
             0.30
         );
         this.gSkyFx.fillGradientStyle(
@@ -1253,7 +1253,7 @@ export class Game extends Scene {
 
         // Very thin high-altitude cloud bands drift independently of the road.
         // Their low opacity adds texture without competing with the skyline.
-        const cloudAlpha = (0.024 + sunNearHorizon * 0.034) * (1 - this.wNight * 0.88);
+        const cloudAlpha = (0.024 + sunNearHorizon * 0.034) * (1 - this.wNight * 0.72);
         if (cloudAlpha > 0.002) {
             const cloudSpan = W + 220;
             const cloudLight = lerpColor(0xeaf5ff, this.sunColor, sunNearHorizon * 0.55);
@@ -1295,6 +1295,24 @@ export class Game extends Scene {
                 this.gSkyFx.fillStyle(i % 7 === 0 ? 0xbfdcff : 0xffffff, sa);
                 this.gSkyFx.fillCircle(sx, sy, i % 9 === 0 ? 1.35 : 0.8);
             }
+        }
+
+        // A restrained moon gives the night scene a believable ambient source
+        // without turning it into a blue daytime palette. It follows a shallow
+        // arc during the same dusk-to-dawn section used by the solar cycle.
+        const moonAlpha = smoothstep((this.wNight - 0.42) / 0.48);
+        if (moonAlpha > 0.002) {
+            const moonProgress = Math.max(0, Math.min(1, (this.dayCycleT - 0.42) / 0.42));
+            const moonX = 78 + moonProgress * 324;
+            const moonY = 76 - Math.sin(moonProgress * Math.PI) * 31;
+            this.gSkyFx.fillStyle(0x9fc8ef, moonAlpha * 0.035);
+            this.gSkyFx.fillCircle(moonX, moonY, 34);
+            this.gSkyFx.fillStyle(0xc5ddf5, moonAlpha * 0.09);
+            this.gSkyFx.fillCircle(moonX, moonY, 21);
+            this.gSkyFx.fillStyle(0xe8f2fb, moonAlpha * 0.88);
+            this.gSkyFx.fillCircle(moonX, moonY, 7.5);
+            this.gSkyFx.fillStyle(0xffffff, moonAlpha * 0.24);
+            this.gSkyFx.fillCircle(moonX - 2, moonY - 2, 3.2);
         }
 
         // Layered glow keeps the sun crisp in the centre while giving it a
@@ -1350,7 +1368,7 @@ export class Game extends Scene {
             .setPosition(W / 2 + mountainParallaxX, HORIZON_Y + 60)
             .setDisplaySize(560 * mountainScale, 265 * mountainScale)
             .setTint(environmentTint)
-            .setAlpha(0.96 - ni * 0.08);
+            .setAlpha(0.97 - ni * 0.04);
 
         // Broad cloud shadows crawl over the lower slopes. Their vertical range
         // sits below the skyline and behind the foreground hill, keeping the
@@ -1415,6 +1433,23 @@ export class Game extends Scene {
                 this.gMountainLife.lineBetween(bx, by, bx - wingSpan, by + 0.8 + wingLift);
                 this.gMountainLife.lineBetween(bx, by, bx + wingSpan, by + 0.8 + wingLift);
             }
+        }
+
+        // Broad, soft moonlight keeps the ridge readable at full night. The
+        // SCREEN layer brightens existing texture detail instead of painting a
+        // flat pale shape over the mountain artwork.
+        const mountainMoonlight = smoothstep((ni - 0.42) / 0.48);
+        if (mountainMoonlight > 0.002) {
+            const moonPatchX = 310 + Math.sin(mountainTime * 0.055) * 24;
+            this.drawSoftMountainPatch(
+                this.gMountainLight,
+                moonPatchX + mountainParallaxX,
+                142 + mountainFxY,
+                350 * mountainScale,
+                82 * mountainScale,
+                0x8fbce8,
+                mountainMoonlight * 0.085
+            );
         }
         const cityTint = lerpColor(0xffffff, this.wSky, 0.10);
         const cityAlpha = 1 - ni * 0.05;
@@ -1614,10 +1649,18 @@ export class Game extends Scene {
             }
         }
 
-        // Night overlay — blue tint deepens toward full night
+        // Night wash: denser in the distant atmosphere, lighter near the
+        // player so road markings and hazards retain realistic visibility.
         if (this.wNight > 0) {
-            const ovCol = lerpColor(0x000818, 0x00082e, this.wNight);
-            this.gNight.fillStyle(ovCol, this.wNight * 0.65);
+            const nightAmount = smoothstep(this.wNight);
+            const ovCol = lerpColor(0x071526, 0x091d38, nightAmount);
+            this.gNight.fillGradientStyle(
+                ovCol, ovCol, ovCol, ovCol,
+                nightAmount * 0.42,
+                nightAmount * 0.42,
+                nightAmount * 0.30,
+                nightAmount * 0.30
+            );
             this.gNight.fillRect(0, 0, W, H);
         }
 
