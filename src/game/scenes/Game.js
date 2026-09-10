@@ -434,12 +434,23 @@ export class Game extends Scene {
                     this.treePool.push(ns);
                     return ns;
                 };
-                // Keep vegetation outside the lamp corridor so foliage never
-                // grows through a pole or its inward-facing luminaire.
+                // Restore the original lightweight paired placement, while
+                // retaining small silhouette differences between both sides.
                 const ox = ROAD_HW + 155 + rnd(0, 80);
-                const is = Math.random() < 0.3;
-                this.trees.push({ z: Z_FAR, s: -1, ox, isStone: is, sprite: getSprite() });
-                this.trees.push({ z: Z_FAR, s:  1, ox, isStone: is, sprite: getSprite() });
+                for (const side of [-1, 1]) {
+                    const seed = rnd(1, 100000);
+                    this.trees.push({
+                        z: Z_FAR,
+                        s: side,
+                        ox,
+                        isStone: Math.random() < 0.22,
+                        variant: Math.random() < 0.74 ? 'pine' : 'round',
+                        size: 0.88 + Math.random() * 0.22,
+                        lean: (Math.random() - 0.5) * 0.10,
+                        seed,
+                        sprite: getSprite(),
+                    });
+                }
             }
         }});
         this.time.addEvent({ delay: 1600, loop: true, callback: () => {
@@ -1183,6 +1194,123 @@ export class Game extends Scene {
         }
     }
 
+    drawProceduralTree(g, p, tree, fogAlpha, nightAmount) {
+        const scale = p.s * (tree.size || 1) * 1.35;
+        const x = p.x;
+        const groundY = p.y;
+        const seed = tree.seed || 1;
+        const lean = tree.lean || 0;
+        const darkGreen = lerpColor(0x183d26, 0x06110c, nightAmount);
+        const midGreen = lerpColor(0x2d6638, 0x091a10, nightAmount);
+        const lightGreen = lerpColor(0x4a8248, 0x102719, nightAmount);
+        const trunkDark = lerpColor(0x49331f, 0x130d09, nightAmount);
+        const trunkLight = lerpColor(0x705036, 0x24170f, nightAmount);
+
+        // A soft contact shadow anchors every shape to the moving grass plane.
+        const shadowW = Math.max(5, 48 * scale);
+        g.fillStyle(0x08150c, fogAlpha * (0.16 + 0.10 * (1 - nightAmount)));
+        g.fillEllipse(x, groundY + Math.max(0.5, scale), shadowW, Math.max(2, 9 * scale));
+
+        // The old shrub/stone slot is retained as a low rounded vegetation
+        // cluster, now with layered volume instead of two plain circles.
+        if (tree.isStone) {
+            const r = Math.max(3.5, 22 * scale);
+            g.fillStyle(darkGreen, fogAlpha);
+            g.fillEllipse(x, groundY - r * 0.45, r * 2.35, r * 1.35);
+            g.fillStyle(midGreen, fogAlpha);
+            g.fillCircle(x - r * 0.52, groundY - r * 0.75, r * 0.72);
+            g.fillCircle(x + r * 0.40, groundY - r * 0.72, r * 0.80);
+            g.fillStyle(lightGreen, fogAlpha * 0.58);
+            g.fillCircle(x - r * 0.62, groundY - r * 0.98, r * 0.34);
+            g.fillCircle(x + r * 0.16, groundY - r * 1.14, r * 0.30);
+            return;
+        }
+
+        if (tree.variant === 'round') {
+            const height = Math.max(10, 102 * scale);
+            const crownR = Math.max(5, 34 * scale);
+            const crownY = groundY - height * 0.66;
+            const trunkW = Math.max(1.5, 8 * scale);
+            const trunkTopX = x + lean * height;
+
+            g.fillStyle(trunkDark, fogAlpha);
+            g.fillTriangle(
+                x - trunkW * 0.62, groundY,
+                x + trunkW * 0.62, groundY,
+                trunkTopX, crownY + crownR * 0.30
+            );
+            g.fillStyle(trunkLight, fogAlpha * 0.58);
+            g.fillTriangle(
+                x - trunkW * 0.14, groundY,
+                x + trunkW * 0.45, groundY,
+                trunkTopX + trunkW * 0.22, crownY + crownR * 0.35
+            );
+
+            g.fillStyle(darkGreen, fogAlpha);
+            g.fillEllipse(trunkTopX, crownY + crownR * 0.10, crownR * 2.25, crownR * 1.75);
+            g.fillStyle(midGreen, fogAlpha);
+            g.fillCircle(trunkTopX - crownR * 0.48, crownY, crownR * 0.72);
+            g.fillCircle(trunkTopX + crownR * 0.42, crownY - crownR * 0.05, crownR * 0.76);
+            g.fillCircle(trunkTopX, crownY - crownR * 0.34, crownR * 0.78);
+            g.fillStyle(lightGreen, fogAlpha * 0.56);
+            g.fillCircle(trunkTopX - crownR * 0.36, crownY - crownR * 0.38, crownR * 0.34);
+            g.fillCircle(trunkTopX + crownR * 0.14, crownY - crownR * 0.60, crownR * 0.28);
+            return;
+        }
+
+        // Layered triangular pine: the familiar old silhouette remains clear,
+        // while tier shadows, a lit side and a tapered trunk add depth.
+        const height = Math.max(11, 118 * scale);
+        const width = Math.max(7, 58 * scale);
+        const topY = groundY - height;
+        const trunkW = Math.max(1.5, 7 * scale);
+        const trunkTopX = x + lean * height * 0.55;
+        g.fillStyle(trunkDark, fogAlpha);
+        g.fillTriangle(
+            x - trunkW * 0.62, groundY,
+            x + trunkW * 0.62, groundY,
+            trunkTopX, groundY - height * 0.52
+        );
+        g.fillStyle(trunkLight, fogAlpha * 0.54);
+        g.fillTriangle(
+            x - trunkW * 0.10, groundY,
+            x + trunkW * 0.48, groundY,
+            trunkTopX + trunkW * 0.22, groundY - height * 0.50
+        );
+
+        const tiers = [
+            { apex: 0.00, base: 0.49, half: 0.29, color: lightGreen },
+            { apex: 0.18, base: 0.71, half: 0.40, color: midGreen },
+            { apex: 0.37, base: 0.93, half: 0.53, color: darkGreen },
+        ];
+        for (let i = tiers.length - 1; i >= 0; i--) {
+            const tier = tiers[i];
+            const apexX = x + lean * height * (1 - tier.apex);
+            const baseX = x + lean * height * (1 - tier.base);
+            const halfW = width * tier.half;
+            const apexY = topY + height * tier.apex;
+            const baseY = topY + height * tier.base;
+            g.fillStyle(tier.color, fogAlpha);
+            g.fillTriangle(apexX, apexY, baseX - halfW, baseY, baseX + halfW, baseY);
+
+            // A narrow soft highlight breaks the flat triangular face without
+            // changing the graphic style of the original trees.
+            g.fillStyle(lightGreen, fogAlpha * (0.24 + hash01(seed + i * 17) * 0.10));
+            g.fillTriangle(
+                apexX - halfW * 0.03,
+                apexY + Math.max(0.5, scale),
+                baseX - halfW * 0.74,
+                baseY - Math.max(0.5, scale),
+                baseX - halfW * 0.08,
+                baseY - Math.max(0.5, scale)
+            );
+            if (scale > 0.13) {
+                g.lineStyle(Math.max(0.5, scale * 1.15), darkGreen, fogAlpha * 0.52);
+                g.lineBetween(baseX - halfW, baseY, baseX + halfW, baseY);
+            }
+        }
+    }
+
     drawSoftMountainPatch(g, x, y, width, height, color, alpha) {
         // Concentric low-alpha ellipses approximate the penumbra of a distant
         // cloud shadow or light break without exposing a hard geometric edge.
@@ -1615,7 +1743,8 @@ export class Game extends Scene {
             g.fillRect(cx + hw,      y, cw, SCAN);
 
             // Side ground texture: the two frequencies fade in independently.
-            // Previously both zone thresholds produced a visible horizontal band.
+            // Both use the exact same world distance as the road, so the grass
+            // remains locked to the surface while the player moves forward.
             const zd = z + this.dist;
             const t3 = (Math.floor(zd / 51) & 1);
             const t4 = (Math.floor(zd / 130) & 1);
@@ -1630,9 +1759,8 @@ export class Game extends Scene {
                         : cityBase;
                 g.fillStyle(cityTexture, 1);
             } else {
-                const gc = this.wGrass;
                 const darken = t4 ? 0.11 * t4Blend : t3 ? 0.06 * t3Blend : 0;
-                g.fillStyle(lerpColor(gc, 0x000000, darken), 1);
+                g.fillStyle(lerpColor(this.wGrass, 0x000000, darken), 1);
             }
             g.fillRect(0,            y, cx - hw - cw, SCAN);
             g.fillRect(cx + hw + cw, y, W - (cx + hw + cw), SCAN);
@@ -1778,34 +1906,22 @@ export class Game extends Scene {
         // Trees (far → near)
         for (let ti = this.trees.length - 1; ti >= 0; ti--) {
             const t = this.trees[ti];
-            if (t.z <= Z_NEAR || t.z > Z_FAR) continue;
-            const p = proj(t.s * t.ox, t.z);
-            if (p.y < HORIZON_Y || p.y > H + 100) continue;
-            const fa = fogFade(p.y);
-            if (fa < 0.02) continue;
-            t.sprite.setVisible(false);
-            if (t.isStone) {
-                const br = Math.max(3, 20 * p.s);
-                this.gEnv.fillStyle(lerpColor(0x356e18, 0x091506, ni), fa);
-                this.gEnv.fillCircle(p.x, p.y - br * 0.55, br);
-                this.gEnv.fillStyle(lerpColor(0x4a9222, 0x0c1c08, ni), fa * 0.7);
-                this.gEnv.fillCircle(p.x - br * 0.35, p.y - br * 0.85, br * 0.62);
+            if (t.z <= Z_NEAR || t.z > Z_FAR) {
+                t.sprite.setVisible(false);
                 continue;
             }
-            const treeFa = fa;
-            const th = Math.max(9, 95 * p.s);
-            const tw = Math.max(2, 10 * p.s);
-            const tr = Math.max(6, 40 * p.s);
-            const foliageCY = p.y - th * 0.58;
-            const trunkStart = foliageCY + tr;
-            if (trunkStart < p.y) {
-                this.gEnv.fillStyle(lerpColor(0x5a3e1e, 0x1a0e08, ni), treeFa);
-                this.gEnv.fillRect(p.x - tw / 2, trunkStart, tw, p.y - trunkStart);
+            const p = proj(t.s * t.ox, t.z);
+            if (p.y < HORIZON_Y || p.y > H + 100) {
+                t.sprite.setVisible(false);
+                continue;
             }
-            this.gEnv.fillStyle(lerpColor(0x2d6e1a, 0x0a1a06, ni), treeFa);
-            this.gEnv.fillCircle(p.x, foliageCY, tr);
-            this.gEnv.fillStyle(lerpColor(0x3d8a25, 0x0e2208, ni), treeFa * 0.75);
-            this.gEnv.fillCircle(p.x - tr * 0.3, foliageCY - tr * 0.2, tr * 0.72);
+            const fa = fogFade(p.y);
+            if (fa < 0.02) {
+                t.sprite.setVisible(false);
+                continue;
+            }
+            t.sprite.setVisible(false);
+            this.drawProceduralTree(this.gEnv, p, t, fa, ni);
         }
 
         // Enemy cars
