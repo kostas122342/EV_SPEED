@@ -1,3 +1,4 @@
+import { saveStorage } from './saveStorage.js';
 const STAT_KEYS = {
     races: 'evspeed_stat_races',
     energyCollected: 'evspeed_stat_energy_collected',
@@ -145,12 +146,12 @@ export const ACHIEVEMENT_DEFINITIONS = [
 ];
 
 function readNumber(key) {
-    const value = Number.parseInt(localStorage.getItem(key) || '0', 10);
+    const value = Number.parseInt(saveStorage.getItem(key) || '0', 10);
     return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
 function writeNumber(key, value) {
-    localStorage.setItem(key, Math.max(0, Math.floor(value)).toString());
+    saveStorage.setItem(key, Math.max(0, Math.floor(value)).toString());
 }
 
 export function recordRaceStarted() {
@@ -158,7 +159,7 @@ export function recordRaceStarted() {
 }
 
 export function recordEnergyCollected(amount = 1) {
-    const stored = localStorage.getItem(STAT_KEYS.energyCollected);
+    const stored = saveStorage.getItem(STAT_KEYS.energyCollected);
     const previous = stored === null
         ? Math.max(0, readNumber('evspeed_energy') - readNumber(REWARD_TOTAL_KEY))
         : readNumber(STAT_KEYS.energyCollected);
@@ -174,14 +175,14 @@ export function recordMaxSpeed(speedKmh) {
 
 function getOwnedVehicleCount() {
     return 1 + VEHICLE_UNLOCK_KEYS.reduce(
-        (count, key) => count + (localStorage.getItem(key) === 'true' ? 1 : 0),
+        (count, key) => count + (saveStorage.getItem(key) === 'true' ? 1 : 0),
         0
     );
 }
 
 export function getAchievementSnapshot(requestedTier = null) {
     const bestScore = readNumber('evspeed_highscore');
-    const storedEnergyCollected = localStorage.getItem(STAT_KEYS.energyCollected);
+    const storedEnergyCollected = saveStorage.getItem(STAT_KEYS.energyCollected);
     const legacyEnergyCollected = Math.max(
         0,
         readNumber('evspeed_energy') - readNumber(REWARD_TOTAL_KEY)
@@ -213,10 +214,10 @@ export function getAchievementSnapshot(requestedTier = null) {
     });
 
     allItems.forEach(item => {
-        item.rewardClaimed = localStorage.getItem(`${REWARD_KEY_PREFIX}${item.id}`) === 'true';
+        item.rewardClaimed = saveStorage.getItem(`${REWARD_KEY_PREFIX}${item.id}`) === 'true';
     });
 
-    const unlockedTier = localStorage.getItem(`${TIER_REWARD_KEY_PREFIX}1`) === 'true'
+    const unlockedTier = saveStorage.getItem(`${TIER_REWARD_KEY_PREFIX}1`) === 'true'
         ? MAX_ACHIEVEMENT_TIER
         : 1;
     const parsedTier = Number.parseInt(requestedTier, 10);
@@ -225,7 +226,7 @@ export function getAchievementSnapshot(requestedTier = null) {
         : unlockedTier;
     const items = allItems.filter(item => item.tier === tier);
     const completed = items.filter(item => item.completed).length;
-    const tierRewardClaimed = localStorage.getItem(
+    const tierRewardClaimed = saveStorage.getItem(
         `${TIER_REWARD_KEY_PREFIX}${tier}`
     ) === 'true';
 
@@ -260,7 +261,7 @@ export function claimAchievementReward(achievementId) {
         REWARD_TOTAL_KEY,
         readNumber(REWARD_TOTAL_KEY) + achievement.reward
     );
-    localStorage.setItem(`${REWARD_KEY_PREFIX}${achievement.id}`, 'true');
+    saveStorage.setItem(`${REWARD_KEY_PREFIX}${achievement.id}`, 'true');
 
     return { claimed: true, reward: achievement.reward, balance };
 }
@@ -285,7 +286,7 @@ export function claimTierCompletionReward(tierNumber) {
     const balance = readNumber('evspeed_energy') + reward;
     writeNumber('evspeed_energy', balance);
     writeNumber(REWARD_TOTAL_KEY, readNumber(REWARD_TOTAL_KEY) + reward);
-    localStorage.setItem(`${TIER_REWARD_KEY_PREFIX}${tier}`, 'true');
+    saveStorage.setItem(`${TIER_REWARD_KEY_PREFIX}${tier}`, 'true');
 
     return {
         claimed: true,

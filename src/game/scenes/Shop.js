@@ -1,3 +1,4 @@
+import { saveStorage } from '../saveStorage.js';
 import { Scene } from 'phaser';
 import { preloadGarageAssets } from '../assetManifest.js';
 import { addMenuVideoBackground, preloadMenuVideo } from '../menuVideoBackground.js';
@@ -77,15 +78,15 @@ export class Shop extends Scene {
         this._toast = false;
         this.ensureShieldTexture();
 
-        const energy      = parseInt(localStorage.getItem('evspeed_energy') || '0');
-        const selectedCar = localStorage.getItem('evspeed_selected_car') || 'playerCar';
-        this.activeTab    = localStorage.getItem('evspeed_shop_tab') || 'cars';
+        const energy      = parseInt(saveStorage.getItem('evspeed_energy') || '0');
+        const selectedCar = saveStorage.getItem('evspeed_selected_car') || 'playerCar';
+        this.activeTab    = saveStorage.getItem('evspeed_shop_tab') || 'cars';
 
         // Restore scroll from before a buy-restart
-        const savedScrollY   = parseInt(localStorage.getItem('evspeed_shop_scrollY')   || '0');
-        const savedPuScrollY = parseInt(localStorage.getItem('evspeed_shop_puScrollY') || '0');
-        localStorage.removeItem('evspeed_shop_scrollY');
-        localStorage.removeItem('evspeed_shop_puScrollY');
+        const savedScrollY   = parseInt(saveStorage.getItem('evspeed_shop_scrollY')   || '0');
+        const savedPuScrollY = parseInt(saveStorage.getItem('evspeed_shop_puScrollY') || '0');
+        saveStorage.removeItem('evspeed_shop_scrollY');
+        saveStorage.removeItem('evspeed_shop_puScrollY');
 
         this.scrollY   = 0;
         this.puScrollY = 0;
@@ -113,7 +114,7 @@ export class Shop extends Scene {
 
         SHOP_CARS.forEach((car, i) => {
             const { cx, cy } = POSITIONS[i];
-            const owned      = !car.unlockKey || localStorage.getItem(car.unlockKey) === 'true';
+            const owned      = !car.unlockKey || saveStorage.getItem(car.unlockKey) === 'true';
             const isSelected = selectedCar === car.key;
             const canAfford  = energy >= car.price;
 
@@ -141,7 +142,7 @@ export class Shop extends Scene {
             // Car image (always created; locked cars get tint + overlay)
             const defaultColorKey  = car.colors ? car.colors[0].key : car.key;
             const activeColorKey   = car.colors
-                ? (localStorage.getItem(`evspeed_activeColor_${car.key}`) || defaultColorKey)
+                ? (saveStorage.getItem(`evspeed_activeColor_${car.key}`) || defaultColorKey)
                 : car.key;
             const activeVariantDef = car.colors ? car.colors.find(v => v.key === activeColorKey) : null;
             const initScale = (activeVariantDef && activeVariantDef.scale != null) ? activeVariantDef.scale : car.scale;
@@ -186,7 +187,7 @@ export class Shop extends Scene {
 
                 const drawOneSwatch = (sg, variant, vi, highlighted) => {
                     const vx     = swStartX + vi * (swSize + swGap);
-                    const ownedV = !variant.unlockKey || localStorage.getItem(variant.unlockKey) === 'true';
+                    const ownedV = !variant.unlockKey || saveStorage.getItem(variant.unlockKey) === 'true';
                     const swColor = parseInt(variant.swatch.replace('#', ''), 16);
                     sg.clear();
                     sg.fillStyle(swColor, 1);
@@ -239,8 +240,8 @@ export class Shop extends Scene {
 
                 const drawActionBtn = (variantKey) => {
                     const variant      = car.colors.find(v => v.key === variantKey);
-                    const ownedV       = !variant.unlockKey || localStorage.getItem(variant.unlockKey) === 'true';
-                    const storedActive = localStorage.getItem(`evspeed_activeColor_${car.key}`) || defaultColorKey;
+                    const ownedV       = !variant.unlockKey || saveStorage.getItem(variant.unlockKey) === 'true';
+                    const storedActive = saveStorage.getItem(`evspeed_activeColor_${car.key}`) || defaultColorKey;
                     const isCurrentActive = storedActive === variantKey && cardState.selected;
                     actionGfx.clear();
                     if (isCurrentActive && ownedV) {
@@ -378,7 +379,7 @@ export class Shop extends Scene {
 
         POWER_UPS.forEach((pu, i) => {
             const { cx, cy } = PU_POSITIONS[i];
-            const count       = parseInt(localStorage.getItem(pu.storeKey) || '0');
+            const count       = parseInt(saveStorage.getItem(pu.storeKey) || '0');
             const canAffordPu = energy >= pu.price;
 
             const card = this.add.graphics();
@@ -398,7 +399,8 @@ export class Shop extends Scene {
             }).setOrigin(0.5));
 
             this.puCont.add(this.add.text(cx, cy + CARD_H / 2 - 112, pu.desc, {
-                fontFamily: 'Arial', fontSize: 12, color: '#7799aa'
+                fontFamily: 'Arial', fontSize: 13, color: '#e0ebf5',
+                fontStyle: 'bold', resolution: 4
             }).setOrigin(0.5));
 
             const cby  = cy + CARD_H / 2 - 84;
@@ -518,7 +520,7 @@ export class Shop extends Scene {
 
         const switchTab = (tab) => {
             this.activeTab = tab;
-            localStorage.setItem('evspeed_shop_tab', tab);
+            saveStorage.setItem('evspeed_shop_tab', tab);
             this.cont.setVisible(tab === 'cars');
             this.puCont.setVisible(tab === 'powerups');
             for (const { img } of scrollIcons)   img.setVisible(tab === 'cars');
@@ -561,7 +563,7 @@ export class Shop extends Scene {
                 } else {
                     // color card: update cardState + redraw button
                     cs.selected = false;
-                    const storedActive = localStorage.getItem(`evspeed_activeColor_${oldKey}`)
+                    const storedActive = saveStorage.getItem(`evspeed_activeColor_${oldKey}`)
                         || (SHOP_CARS.find(c => c.key === oldKey)?.colors?.[0]?.key || oldKey);
                     redrawActionBtnFns[oldKey]?.(storedActive);
                 }
@@ -569,8 +571,8 @@ export class Shop extends Scene {
 
             // Select new card
             liveSelected = newCarKey;
-            localStorage.setItem('evspeed_selected_car', newCarKey);
-            if (newColorKey) localStorage.setItem(`evspeed_activeColor_${newCarKey}`, newColorKey);
+            saveStorage.setItem('evspeed_selected_car', newCarKey);
+            if (newColorKey) saveStorage.setItem(`evspeed_activeColor_${newCarKey}`, newColorKey);
 
             selBorderFns[newCarKey]?.(true);
             if (cardStateFns[newCarKey]) {
@@ -580,7 +582,7 @@ export class Shop extends Scene {
                 } else {
                     cs.selected = true;
                     const activeKey = newColorKey
-                        || localStorage.getItem(`evspeed_activeColor_${newCarKey}`)
+                        || saveStorage.getItem(`evspeed_activeColor_${newCarKey}`)
                         || (SHOP_CARS.find(c => c.key === newCarKey)?.colors?.[0]?.key || newCarKey);
                     redrawActionBtnFns[newCarKey]?.(activeKey);
                 }
@@ -668,17 +670,17 @@ export class Shop extends Scene {
                     } else if (a.type === 'colorAction') {
                         const variantKey = a.state.variantKey;
                         const variant    = a.colors.find(v => v.key === variantKey);
-                        const ownedV     = !variant.unlockKey || localStorage.getItem(variant.unlockKey) === 'true';
+                        const ownedV     = !variant.unlockKey || saveStorage.getItem(variant.unlockKey) === 'true';
                         if (ownedV) {
                             // ── In-place color select ──
                             selectCarInPlace(a.carKey, variantKey);
                         } else {
-                            const cur = parseInt(localStorage.getItem('evspeed_energy') || '0');
+                            const cur = parseInt(saveStorage.getItem('evspeed_energy') || '0');
                             if (cur >= (variant.price || 0)) {
-                                localStorage.setItem('evspeed_energy', cur - (variant.price || 0));
-                                localStorage.setItem(variant.unlockKey, 'true');
-                                localStorage.setItem(`evspeed_activeColor_${a.carKey}`, variantKey);
-                                localStorage.setItem('evspeed_shop_scrollY', this.scrollY);
+                                saveStorage.setItem('evspeed_energy', cur - (variant.price || 0));
+                                saveStorage.setItem(variant.unlockKey, 'true');
+                                saveStorage.setItem(`evspeed_activeColor_${a.carKey}`, variantKey);
+                                saveStorage.setItem('evspeed_shop_scrollY', this.scrollY);
                                 this.showPurchase();
                             } else {
                                 this.showToast('NOT ENOUGH ENERGY');
@@ -687,23 +689,23 @@ export class Shop extends Scene {
 
                     } else if (a.type === 'buy') {
                         if (a.canAfford) {
-                            const prev = parseInt(localStorage.getItem('evspeed_energy') || '0');
-                            localStorage.setItem('evspeed_energy', prev - a.price);
-                            localStorage.setItem(a.key, 'true');
-                            if (a.firstColorUnlockKey) localStorage.setItem(a.firstColorUnlockKey, 'true');
-                            localStorage.setItem('evspeed_shop_scrollY', this.scrollY);
+                            const prev = parseInt(saveStorage.getItem('evspeed_energy') || '0');
+                            saveStorage.setItem('evspeed_energy', prev - a.price);
+                            saveStorage.setItem(a.key, 'true');
+                            if (a.firstColorUnlockKey) saveStorage.setItem(a.firstColorUnlockKey, 'true');
+                            saveStorage.setItem('evspeed_shop_scrollY', this.scrollY);
                             this.showPurchase();
                         } else {
                             this.showToast('NOT ENOUGH ENERGY');
                         }
 
                     } else if (a.type === 'buyPu') {
-                        const curEnergy = parseInt(localStorage.getItem('evspeed_energy') || '0');
+                        const curEnergy = parseInt(saveStorage.getItem('evspeed_energy') || '0');
                         if (curEnergy >= a.price) {
-                            const count     = parseInt(localStorage.getItem(a.storeKey) || '0');
+                            const count     = parseInt(saveStorage.getItem(a.storeKey) || '0');
                             const newEnergy = curEnergy - a.price;
-                            localStorage.setItem('evspeed_energy', newEnergy);
-                            localStorage.setItem(a.storeKey, count + 1);
+                            saveStorage.setItem('evspeed_energy', newEnergy);
+                            saveStorage.setItem(a.storeKey, count + 1);
                             liveEnergy = newEnergy;
                             energyTxt.setText(newEnergy.toString());
                             puCountRefs[a.storeKey](count + 1);

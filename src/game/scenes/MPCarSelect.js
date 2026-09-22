@@ -1,3 +1,4 @@
+import { saveStorage } from '../saveStorage.js';
 import { Scene } from 'phaser';
 import { preloadGarageAssets } from '../assetManifest.js';
 import { addMenuVideoBackground, preloadMenuVideo } from '../menuVideoBackground.js';
@@ -62,14 +63,14 @@ const CARS_WITH_COLORS = {
 function buildCarsList() {
     const result = [];
     for (const carDef of ALL_CARS) {
-        const carOwned = !carDef.unlockKey || localStorage.getItem(carDef.unlockKey) === 'true';
+        const carOwned = !carDef.unlockKey || saveStorage.getItem(carDef.unlockKey) === 'true';
         if (!carOwned) continue;
 
         const colorDefs = CARS_WITH_COLORS[carDef.key];
         if (colorDefs) {
-            const owned = colorDefs.filter(c => !c.unlockKey || localStorage.getItem(c.unlockKey) === 'true');
+            const owned = colorDefs.filter(c => !c.unlockKey || saveStorage.getItem(c.unlockKey) === 'true');
             const colors = owned.length > 0 ? owned : [colorDefs[0]]; // fallback to first if none owned
-            const savedColor = localStorage.getItem(`evspeed_activeColor_${carDef.key}`);
+            const savedColor = saveStorage.getItem(`evspeed_activeColor_${carDef.key}`);
             const activeColor = colors.find(c => c.variantKey === savedColor) || colors[0];
             result.push({
                 ...carDef,
@@ -101,7 +102,7 @@ export class MPCarSelect extends Scene {
         if (this.cars.length === 0) this.cars = [{ key: 'playerCar', name: 'EV 3', unlockKey: null, scale: 0.23, offY: -82, offX: 1, variantKey: 'playerCar', swatch: 0xd8d8d8 }];
 
         // The carousel contains one entry per model; colors are selected inside its card.
-        const lastCar = localStorage.getItem('evspeed_selected_car') || 'playerCar';
+        const lastCar = saveStorage.getItem('evspeed_selected_car') || 'playerCar';
         let lastIdx = this.cars.findIndex(c => c.key === lastCar);
         if (lastIdx < 0) lastIdx = 0;
 
@@ -243,13 +244,13 @@ export class MPCarSelect extends Scene {
         this.makeBtn(W / 2, H - 76, 220, 54, 'START',
             [0x005533, 0x007744, 0x22aa66], () => {
                 const p1 = this.getPlayerCar(1);
-                localStorage.setItem('evspeed_selected_car', p1.key);
-                localStorage.setItem(`evspeed_activeColor_${p1.key}`, p1.variantKey);
+                saveStorage.setItem('evspeed_selected_car', p1.key);
+                saveStorage.setItem(`evspeed_activeColor_${p1.key}`, p1.variantKey);
                 if (this.isSingle) {
                     transitionToScene(this, 'Game', { mp: false, carKey: p1.key }, 'race');
                 } else {
                     const p2 = this.getPlayerCar(2);
-                    localStorage.setItem(`evspeed_activeColor_${p2.key}`, p2.variantKey);
+                    saveStorage.setItem(`evspeed_activeColor_${p2.key}`, p2.variantKey);
                     transitionToScene(this, 'Game', { mp: true, player: 1, p1Score: 0, p1Car: p1.key, p2Car: p2.key, p1Color: p1.variantKey, p2Color: p2.variantKey, p1Name: this.p1DriverName, p2Name: this.p2DriverName }, 'race');
                 }
             });

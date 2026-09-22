@@ -1,3 +1,4 @@
+import { saveStorage } from '../saveStorage.js';
 import { Scene, Textures } from 'phaser';
 import { preloadMenuAssets } from '../assetManifest.js';
 import { addMenuVideoBackground, preloadMenuVideo } from '../menuVideoBackground.js';
@@ -22,9 +23,9 @@ export class Menu extends Scene {
     create() {
         this.textures.get('energyLogo').setFilter(Textures.FilterMode.LINEAR);
         const achievementSnapshot = getAchievementSnapshot();
-        const totalEnergy = parseInt(localStorage.getItem('evspeed_energy') || '0');
+        const totalEnergy = parseInt(saveStorage.getItem('evspeed_energy') || '0');
 
-        const musicOn = localStorage.getItem('evspeed_music') !== 'false';
+        const musicOn = saveStorage.getItem('evspeed_music') !== 'false';
         let bgMusic = this.sound.get('bgMusic');
         if (!bgMusic) bgMusic = this.sound.add('bgMusic', { loop: true, volume: 0.45 });
         if (musicOn && !bgMusic.isPlaying) bgMusic.play();
@@ -442,7 +443,8 @@ export class Menu extends Scene {
             stroke: '#00111f', strokeThickness: 4
         }).setOrigin(0.5).setDepth(3);
         const subtitle = this.add.text(W / 2, 68, 'EV SPEED  •  QUICK GUIDE', {
-            fontFamily: 'Arial', fontSize: 11, color: '#67ddff',
+            fontFamily: 'Arial', fontSize: 12, color: '#8ee8ff',
+            fontStyle: 'bold', resolution: 4,
             letterSpacing: 1.5
         }).setOrigin(0.5).setDepth(3);
 
@@ -450,11 +452,13 @@ export class Menu extends Scene {
             fontFamily: 'Arial Black', fontSize: 18, color: '#ffffff'
         }).setOrigin(0, 0.5).setDepth(3);
         const controlsDesc = this.add.text(154, 153, 'Change lanes and dodge traffic.', {
-            fontFamily: 'Arial', fontSize: 15, color: '#b9d0e6',
+            fontFamily: 'Arial', fontSize: 15, color: '#e0ebf5',
+            fontStyle: 'bold', resolution: 4,
             wordWrap: { width: 270 }
         }).setOrigin(0, 0.5).setDepth(3);
         const controlsHint = this.add.text(154, 178, 'Swipe or use the arrow keys.', {
-            fontFamily: 'Arial', fontSize: 12, color: '#5fcfee'
+            fontFamily: 'Arial', fontSize: 13, color: '#8ee8ff',
+            fontStyle: 'bold', resolution: 4
         }).setOrigin(0, 0.5).setDepth(3);
 
         const powerTitle = this.add.text(34, 229, 'POWER-UPS', {
@@ -480,7 +484,8 @@ export class Menu extends Scene {
                 stroke: '#00111f', strokeThickness: 3
             }).setOrigin(0, 0.5).setDepth(3);
             const rowDesc = this.add.text(140, row.center + 15, row.description, {
-                fontFamily: 'Arial', fontSize: 14, color: '#c9d9e8',
+                fontFamily: 'Arial', fontSize: 15, color: '#e0ebf5',
+                fontStyle: 'bold', resolution: 4,
                 wordWrap: { width: 286 }
             }).setOrigin(0, 0.5).setDepth(3);
             overlay.add([icon, rowTitle, rowDesc]);
@@ -504,7 +509,8 @@ export class Menu extends Scene {
             stroke: '#003044', strokeThickness: 4
         }).setOrigin(0.5).setDepth(4);
         const footer = this.add.text(W / 2, 686, 'Collect power-ups. Survive longer. Go faster.', {
-            fontFamily: 'Arial', fontSize: 11, color: '#55758e'
+            fontFamily: 'Arial', fontSize: 12, color: '#b8cede',
+            fontStyle: 'bold', resolution: 4
         }).setOrigin(0.5).setDepth(3);
         overlay.add([button, buttonText, footer]);
 

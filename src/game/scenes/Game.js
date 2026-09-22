@@ -1,3 +1,4 @@
+import { saveStorage } from '../saveStorage.js';
 import { Scene, Textures } from 'phaser';
 import {
     getPlayerPseudo3DConfig,
@@ -229,9 +230,9 @@ export class Game extends Scene {
         this.over    = false;
         this.homeDown = false;
         this.powerups     = {
-            clearLane: parseInt(localStorage.getItem('evspeed_pu_clear') || '0'),
-            megaBomb:  parseInt(localStorage.getItem('evspeed_pu_bomb')  || '0'),
-            shield:    parseInt(localStorage.getItem('evspeed_pu_shield') || '0'),
+            clearLane: parseInt(saveStorage.getItem('evspeed_pu_clear') || '0'),
+            megaBomb:  parseInt(saveStorage.getItem('evspeed_pu_bomb')  || '0'),
+            shield:    parseInt(saveStorage.getItem('evspeed_pu_shield') || '0'),
         };
         this.powerupItems = [];
         this.puFlashT     = 0;
@@ -303,7 +304,7 @@ export class Game extends Scene {
 
         this.carRot = 0;
         const mpCarKey = this.mp ? (this.mpPlayer === 1 ? mpData.p1Car : mpData.p2Car) : (mpData.carKey || null);
-        const selectedCar = mpCarKey || localStorage.getItem('evspeed_selected_car') || 'playerCar';
+        const selectedCar = mpCarKey || saveStorage.getItem('evspeed_selected_car') || 'playerCar';
         this.selectedCar = selectedCar;
         this.playerVariantKey = resolveGameplayPlayerVariant(mpData);
         this.playerPseudo3D = getPlayerPseudo3DConfig(this.playerVariantKey);
@@ -366,9 +367,9 @@ export class Game extends Scene {
         this.input.on('pointermove', p => {
             if (!p.isDown || this.swiped || this.over) return;
             const dx = p.x - this.sx, dy = p.y - this.sy;
-            if (Math.abs(dx) > 30 && Math.abs(dx) > Math.abs(dy)) {
+            if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
                 this.swiped = true;
-                this.go(dx > 0 ? 1 : -1);
+                this.go(dx > 0 ? 1 : -1, true);
             }
         });
         this.input.on('pointerup', () => { this.swiped = false; });
@@ -692,7 +693,7 @@ export class Game extends Scene {
             .setAlpha(blend);
     }
 
-    go(d) {
+    go(d, fromSwipe = false) {
         if (this.over || !this.started) return;
         const nl = this.lane + d;
         if (nl < 0 || nl > 2 || nl === this.lane) return;
@@ -715,7 +716,7 @@ export class Game extends Scene {
                 targets: this,
                 px: laneX(nl),
                 pseudo3dAngle: targetAngle,
-                duration: 160,
+                duration: fromSwipe ? 140 : 160,
                 ease: 'Sine.easeInOut',
                 onComplete: () => {
                     this.moving = false;
@@ -731,7 +732,7 @@ export class Game extends Scene {
                 targets: this,
                 px: laneX(nl),
                 carRot: leanAngle,
-                duration: 160,
+                duration: fromSwipe ? 140 : 160,
                 ease: 'Sine.easeOut',
                 onComplete: () => {
                     this.moving = false;
@@ -950,9 +951,9 @@ export class Game extends Scene {
                     this.driveEnergy + ENERGY_POINT_RECHARGE
                 );
                 this.tEn.setText(': ' + this.energy);
-                const prev = parseInt(localStorage.getItem('evspeed_energy') || '0');
+                const prev = parseInt(saveStorage.getItem('evspeed_energy') || '0');
                 recordEnergyCollected();
-                localStorage.setItem('evspeed_energy', prev + 1);
+                saveStorage.setItem('evspeed_energy', prev + 1);
                 const sp = proj(LANE_CENTERS[ec.lane], Math.max(ec.z, 1));
                 for (let k = 0; k < 12; k++) {
                     const angle = Math.random() * Math.PI * 2;
@@ -2128,14 +2129,14 @@ export class Game extends Scene {
     }
 
     playSfx(key, config = {}) {
-        if (localStorage.getItem('evspeed_sfx') === 'false') return;
+        if (saveStorage.getItem('evspeed_sfx') === 'false') return;
         this.sound.play(key, config);
     }
 
     activateClearLane() {
         if (this.powerups.clearLane <= 0 || this.over || !this.started) return;
         this.powerups.clearLane--;
-        localStorage.setItem('evspeed_pu_clear', this.powerups.clearLane);
+        saveStorage.setItem('evspeed_pu_clear', this.powerups.clearLane);
         this.updatePowerupBtns();
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             if (this.enemies[i].lane === this.lane) {
@@ -2156,7 +2157,7 @@ export class Game extends Scene {
     activateMegaBomb() {
         if (this.powerups.megaBomb <= 0 || this.over || !this.started) return;
         this.powerups.megaBomb--;
-        localStorage.setItem('evspeed_pu_bomb', this.powerups.megaBomb);
+        saveStorage.setItem('evspeed_pu_bomb', this.powerups.megaBomb);
         this.updatePowerupBtns();
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             this.showEnemyCrash(this.enemies[i].sprite, this.enemies[i].z, this.enemies[i].lane);
@@ -2174,7 +2175,7 @@ export class Game extends Scene {
     activateShield() {
         if (this.powerups.shield <= 0 || this.over || !this.started) return;
         this.powerups.shield--;
-        localStorage.setItem('evspeed_pu_shield', this.powerups.shield);
+        saveStorage.setItem('evspeed_pu_shield', this.powerups.shield);
         this.shieldT = SHIELD_DURATION_SECONDS;
         this.updatePowerupBtns();
     }
@@ -2350,9 +2351,9 @@ export class Game extends Scene {
             return;
         }
 
-        const prevBest = parseInt(localStorage.getItem('evspeed_highscore') || '0');
+        const prevBest = parseInt(saveStorage.getItem('evspeed_highscore') || '0');
         const isHighScore = this.score > prevBest;
-        if (isHighScore) localStorage.setItem('evspeed_highscore', this.score);
+        if (isHighScore) saveStorage.setItem('evspeed_highscore', this.score);
 
         const boxH = isHighScore ? 230 : 190;
         const bx = this.add.graphics().setDepth(21);

@@ -12,7 +12,8 @@ or newer (setup was verified with Node 24).
   before registering store listings or generating the future iOS project.
 - There is no remote `server.url`: mobile builds will bundle the web assets.
 - The Android project is included and has been run on a POCO device.
-- iOS, release signing, native plugins, and CI are not set up yet.
+- iOS, release signing, and CI are not set up yet.
+- Native progress uses Capacitor Preferences; the web version retains localStorage.
 
 ## Web workflow
 
@@ -57,8 +58,28 @@ does not compile, sign, or upload an app. Before platforms are added there is
 no native target to sync. Open an added project with `npx cap open ios` or
 `npx cap open android` on the corresponding development machine.
 
-Before a public release, implement safe areas, app pause/resume, media recovery,
-and native save persistence, then verify both browser and physical-device play.
+Before a public release, verify safe areas, app pause/resume, media recovery,
+and save persistence in both browser and physical-device play.
+
+## Local progress (no account or cloud)
+
+Boot awaits `saveStorage.init()` before creating Phaser scenes. On native devices,
+existing `evspeed_*` WebView keys are imported once into a Preferences snapshot.
+Later launches use that snapshot, not the old keys. The synchronous game-facing
+cache serializes native writes and journals pending changes in WebView storage
+for retry after a failed write. Read/parse failures block startup with a retry
+button instead of resetting progress. Browser saves retain their original keys.
+
+Run `node --test tests/saveStore.test.js` for storage regression tests. After sync,
+use Android Studio Run to update the existing installation (do not uninstall).
+Check energy, owned vehicles/colors, power-ups, achievements and sound settings
+after force-closing and reopening the app; then check them again after another
+build/install update. Web and native saves are separate and do not synchronize.
+Uninstalling or clearing app data can lose progress; this is not a cloud backup.
+
+When adding iOS, include the Preferences-required PrivacyInfo.xcprivacy entry:
+`NSPrivacyAccessedAPICategoryUserDefaults`, reason `CA92.1`, per the plugin docs:
+https://capacitorjs.com/docs/apis/preferences
 
 References:
 - https://capacitorjs.com/docs/getting-started

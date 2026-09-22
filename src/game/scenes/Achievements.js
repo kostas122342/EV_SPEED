@@ -185,8 +185,10 @@ export class Achievements extends Scene {
 
         this.add.text(84, centerY + 3, achievement.description, {
             fontFamily: 'Arial',
-            fontSize: 10,
-            color: '#a9bed0',
+            fontSize: 12,
+            fontStyle: 'bold',
+            resolution: 4,
+            color: '#e0ebf5',
         }).setOrigin(0, 0.5).setDepth(5);
 
         const barX = 84;

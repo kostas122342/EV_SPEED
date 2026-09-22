@@ -1,3 +1,4 @@
+import { saveStorage } from '../saveStorage.js';
 import { Scene } from 'phaser';
 import { preloadCapsuleAssets } from '../assetManifest.js';
 import { transitionToScene } from '../sceneTransition.js';
@@ -203,9 +204,9 @@ export class Capsule extends Scene {
             [0xffd700]: { lsKey: 'evspeed_evX',  spriteKey: 'evX',  label: 'EV X',    revealX: W / 2 - 5,  revealY: H / 2 - 10,  revealScale: 0.22 },
         };
         const toUnlock = COLOR_UNLOCK[selectedCol] || null;
-        const prev = parseInt(localStorage.getItem('evspeed_energy') || '0');
-        localStorage.setItem('evspeed_energy', Math.max(0, prev - 100));
-        if (toUnlock) localStorage.setItem(toUnlock.lsKey, 'true');
+        const prev = parseInt(saveStorage.getItem('evspeed_energy') || '0');
+        saveStorage.setItem('evspeed_energy', Math.max(0, prev - 100));
+        if (toUnlock) saveStorage.setItem(toUnlock.lsKey, 'true');
 
         this.time.delayedCall(300, () => {
             this.gCaps.clear();

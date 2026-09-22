@@ -1,3 +1,4 @@
+import { saveStorage } from './saveStorage.js';
 const MENU_IMAGES = [
     ['playerCar', 'assets/CarFinal.webp'],
     ['energyLogo', 'assets/En4.webp'],
@@ -92,13 +93,13 @@ export function resolveGameplayPlayerVariant(data = {}) {
     const player = data.player || 1;
     const selectedCar = multiplayer
         ? (player === 1 ? data.p1Car : data.p2Car) || 'playerCar'
-        : data.carKey || localStorage.getItem('evspeed_selected_car') || 'playerCar';
+        : data.carKey || saveStorage.getItem('evspeed_selected_car') || 'playerCar';
     if (!VARIANT_DEFAULTS[selectedCar]) return selectedCar;
     const multiplayerColor = multiplayer
         ? (player === 1 ? data.p1Color : data.p2Color)
         : null;
     return multiplayerColor
-        || localStorage.getItem(`evspeed_activeColor_${selectedCar}`)
+        || saveStorage.getItem(`evspeed_activeColor_${selectedCar}`)
         || VARIANT_DEFAULTS[selectedCar];
 }
 

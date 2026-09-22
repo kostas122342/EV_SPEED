@@ -1,3 +1,4 @@
+import { saveStorage } from '../saveStorage.js';
 import { Scene } from 'phaser';
 import { addMenuVideoBackground, preloadMenuVideo } from '../menuVideoBackground.js';
 import { transitionToScene } from '../sceneTransition.js';
@@ -36,7 +37,7 @@ export class Settings extends Scene {
         const startY = 240;
         SETTINGS.forEach((s, i) => {
             const rowY = startY + i * 130;
-            const enabled = localStorage.getItem(s.key) !== 'false';
+            const enabled = saveStorage.getItem(s.key) !== 'false';
 
             // Row bg
             const rowBg = this.add.graphics().setDepth(2);
@@ -83,9 +84,9 @@ export class Settings extends Scene {
             const zone = this.add.zone(tx + tw / 2, rowY, tw + 20, th + 20)
                 .setInteractive({ useHandCursor: true }).setDepth(5);
             zone.on('pointerdown', () => {
-                const nowOn = localStorage.getItem(s.key) !== 'false';
+                const nowOn = saveStorage.getItem(s.key) !== 'false';
                 const next = !nowOn;
-                localStorage.setItem(s.key, next.toString());
+                saveStorage.setItem(s.key, next.toString());
                 draw(next);
                 stateTxt.setText(next ? 'ON' : 'OFF');
                 stateTxt.setColor(next ? '#00cfff' : '#556677');

@@ -1,3 +1,4 @@
+import { saveStorage } from './saveStorage.js';
 // Shared by the two-player race start and the pause overlay.
 export function showRaceCountdown(scene, { label, color = '#00cfff', fontStyle = 'normal', onComplete }) {
     const ov = scene.add.graphics().setDepth(24);
@@ -11,7 +12,7 @@ export function showRaceCountdown(scene, { label, color = '#00cfff', fontStyle =
         fontFamily: 'Arial Black', fontSize: 100, color: '#ffffff', fontStyle,
         stroke: '#000000', strokeThickness: 10,
     }).setOrigin(0.5).setDepth(25);
-    const sound = localStorage.getItem('evspeed_sfx') !== 'false'
+    const sound = saveStorage.getItem('evspeed_sfx') !== 'false'
         ? scene.sound.add('countdown', { volume: 0.8 }) : null;
     sound?.play();
     const stopSound = () => sound?.destroy();
