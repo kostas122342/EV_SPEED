@@ -461,14 +461,15 @@ export class Shop extends Scene {
         for (const { img } of puScrollIcons) img.setVisible(this.activeTab === 'powerups');
 
         // ── ENERGY DISPLAY ──────────────────────────────────────────
-        const uiBg = this.add.graphics().setDepth(9);
+        // Keep the balance above header chrome and scrolling shop content.
+        const uiBg = this.add.graphics().setDepth(12);
         uiBg.fillStyle(0x000000, 0.40);
-        uiBg.fillRoundedRect(W - 160, 8, 156, 48, 10);
-        this.add.image(W - 120, 32, 'energyLogo').setOrigin(0.5).setScale(0.32).setDepth(9);
-        const energyTxt = this.add.text(W - 20, 32, energy.toString(), {
-            fontFamily: 'Arial Black', fontSize: 28, color: '#00cfff',
+        uiBg.fillRoundedRect(W - 160, 8, 156, 58, 10);
+        this.add.image(W - 135, 37, 'energyLogo').setOrigin(0.5).setScale(0.38).setDepth(13);
+        const energyTxt = this.add.text(W - 20, 37, energy.toString(), {
+            fontFamily: 'Arial Black', fontSize: 34, color: '#00cfff',
             stroke: '#000000', strokeThickness: 4
-        }).setOrigin(1, 0.5).setDepth(9);
+        }).setOrigin(1, 0.5).setDepth(13);
 
         // ── TOP CHROME ──────────────────────────────────────────────
         const topChrome = this.add.graphics().setDepth(9);

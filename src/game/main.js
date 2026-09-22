@@ -8,6 +8,7 @@ import { Shop } from './scenes/Shop';
 import { MPCarSelect } from './scenes/MPCarSelect';
 import { Settings } from './scenes/Settings';
 import { Achievements } from './scenes/Achievements';
+import { Pause } from './scenes/Pause';
 import { AUTO, Scale, Game, GameObjects } from 'phaser';
 
 // Use the bundled display font everywhere Arial Black was requested, instead
@@ -83,6 +84,7 @@ const config = {
         MenuBackground,
         Menu,
         MainGame,
+        Pause,
         Capsule,
         Shop,
         MPCarSelect,

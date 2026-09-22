@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">EV SPEED</string>
+    <string name="title_activity_main">EV SPEED</string>
+    <string name="package_name">com.kostas122342.evspeed</string>
+    <string name="custom_url_scheme">com.kostas122342.evspeed</string>
+</resources>

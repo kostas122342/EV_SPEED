@@ -7,6 +7,7 @@ import {
 } from '../assetManifest.js';
 import { transitionToScene } from '../sceneTransition.js';
 import { recordEnergyCollected, recordMaxSpeed, recordRaceStarted } from '../achievements.js';
+import { showRaceCountdown } from '../countdown.js';
 
 const W = 480, H = 720;
 const HORIZON_Y = 180;
@@ -516,27 +517,32 @@ export class Game extends Scene {
             }
         }});
 
-        // Home button (bottom right)
-        const homeBg = this.add.graphics().setDepth(9);
-        const drawHomeBg = (hover) => {
-            homeBg.clear();
-            homeBg.fillStyle(hover ? 0x0055aa : 0x000000, hover ? 0.75 : 0.50);
-            homeBg.fillCircle(W - 38, H - 38, 26);
-            homeBg.lineStyle(2, 0xffffff, hover ? 0.95 : 0.60);
-            homeBg.strokeCircle(W - 38, H - 38, 26);
+        // Compact pause control in the former Home position.
+        const pauseX = W - 38, pauseY = H - 38;
+        const pauseGfx = this.add.graphics().setDepth(10);
+        const drawPause = (active) => {
+            pauseGfx.clear();
+            pauseGfx.fillStyle(0x000000, 0.18);
+            pauseGfx.fillCircle(pauseX, pauseY + 2, 25);
+            pauseGfx.fillStyle(active ? 0x123b50 : 0x071923, active ? 0.90 : 0.72);
+            pauseGfx.fillCircle(pauseX, pauseY, 24);
+            pauseGfx.lineStyle(1.3, 0x64d9ef, active ? 0.95 : 0.48);
+            pauseGfx.strokeCircle(pauseX, pauseY, 24);
+            pauseGfx.lineStyle(1, 0xffffff, 0.10);
+            pauseGfx.strokeCircle(pauseX, pauseY, 21);
+            pauseGfx.fillStyle(active ? 0xffffff : 0xc8eff5, 1);
+            pauseGfx.fillRoundedRect(pauseX - 8, pauseY - 9, 5, 18, 2);
+            pauseGfx.fillRoundedRect(pauseX + 3, pauseY - 9, 5, 18, 2);
         };
-        drawHomeBg(false);
-        this.add.text(W - 38, H - 39, '⌂', {
-            fontFamily: 'Arial', fontSize: 26, color: '#ffffff',
-            stroke: '#000000', strokeThickness: 2
-        }).setOrigin(0.5, 0.5).setDepth(10);
-        const homeZone = this.add.zone(W - 38, H - 38, 52, 52).setInteractive().setDepth(11);
-        homeZone.on('pointerover',  () => drawHomeBg(true));
-        homeZone.on('pointerout',   () => drawHomeBg(false));
-        homeZone.on('pointerdown',  () => {
-            this.homeDown = true;
-            transitionToScene(this, 'Menu');
-        });
+        drawPause(false);
+        this.add.zone(pauseX, pauseY, 52, 52)
+            .setInteractive({ useHandCursor: true }).setDepth(11)
+            .on('pointerover', () => drawPause(true))
+            .on('pointerout', () => drawPause(false))
+            .on('pointerdown', () => {
+                drawPause(false);
+                this.pauseRace();
+            });
 
         // Power-up buttons (bottom-left)
         this.puClrGfx = this.add.graphics().setDepth(9);
@@ -563,44 +569,33 @@ export class Game extends Scene {
         }
 
         this.redraw();
+        const pauseRace = () => this.pauseRace();
+        this.game.events.on('blur', pauseRace);
+        this.game.events.on('hidden', pauseRace);
+        this.input.keyboard.on('keydown-ESC', pauseRace);
+        this.events.once('shutdown', () => {
+            this.game.events.off('blur', pauseRace);
+            this.game.events.off('hidden', pauseRace);
+            this.input.keyboard.off('keydown-ESC', pauseRace);
+        });
+    }
+
+    pauseRace() {
+        if (this.over || !this.started || !this.scene.isActive() || this.scene.isActive('Pause')) return;
+        this.homeDown = true;
+        this.pauseSounds = this.sound.getAll().filter(sound => sound.isPlaying);
+        for (const sound of this.pauseSounds) sound.pause();
+        this.scene.launch('Pause');
+        this.scene.bringToTop('Pause');
+        this.scene.pause();
     }
 
     startCountdown() {
-        const col = this.mpPlayer === 1 ? '#00cfff' : '#ff9900';
-        const ov = this.add.graphics().setDepth(24);
-        ov.fillStyle(0x000000, 0.70);
-        ov.fillRect(0, 0, W, H);
-
-        const lbl = this.add.text(W / 2, H / 2 - 90, this.mpPlayer === 1 ? this.mpP1Name : this.mpP2Name, {
-            fontFamily: 'Arial Black', fontSize: 34, color: col,
-            stroke: '#000000', strokeThickness: 7
-        }).setOrigin(0.5).setDepth(25);
-
-        const numTxt = this.add.text(W / 2, H / 2 + 10, '3', {
-            fontFamily: 'Arial Black', fontSize: 100, color: '#ffffff',
-            stroke: '#000000', strokeThickness: 10
-        }).setOrigin(0.5).setDepth(25);
-
-        const steps = ['3', '2', '1', 'GO!'];
-        let i = 0;
-        this.playSfx('countdown', { volume: 0.8 });
-        const tick = () => {
-            numTxt.setText(steps[i]);
-            numTxt.setScale(1.5);
-            this.tweens.add({ targets: numTxt, scaleX: 1, scaleY: 1, duration: 700, ease: 'Back.easeOut' });
-            i++;
-            if (i < steps.length) {
-                this.time.delayedCall(900, tick);
-            } else {
-                this.time.delayedCall(650, () => {
-                    this.tweens.add({ targets: [ov, lbl, numTxt], alpha: 0, duration: 300,
-                        onComplete: () => { ov.destroy(); lbl.destroy(); numTxt.destroy(); }
-                    });
-                    this.started = true;
-                });
-            }
-        };
-        tick();
+        showRaceCountdown(this, {
+            label: this.mpPlayer === 1 ? this.mpP1Name : this.mpP2Name,
+            color: this.mpPlayer === 1 ? '#00cfff' : '#ff9900',
+            onComplete: () => { this.started = true; },
+        });
     }
 
     getPlayerHitbox() {
